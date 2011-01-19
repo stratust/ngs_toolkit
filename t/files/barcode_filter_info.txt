@@ -1,0 +1,10 @@
+Filter Information
+-------------------------------------------------------------
+
+Total of sequences:            2
+Total of matched sequences:    1
+Total of matched seq file1:    0
+Total of matched seq file2:    1
+Total of nomatched sequence:   1
+Total of duplicated barcode:   0
+-------------------------------------------------------------
