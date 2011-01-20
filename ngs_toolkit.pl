@@ -33,15 +33,27 @@
  
  This application requires Perl 5.10.0 or higher   
  This application requires, at least, the following modules to work:
+
     - App::Cmd
-    - Getopt::Long
+    - Bio::FeatureIO
+    - Bio::SeqIO
+    - Cache::FastMmap
+    - Carp
+    - Data::Dumper
+    - File::Basename
+    - File::Temp
+    - Modern::Perl
     - Moose
+    - Moose::Role
+    - Moose::Util::TypeConstraints
+    - MooseX::FileAttribute
     - MooseX::Getopt
     - MooseX::App::Cmd
     - MooseX::SimpleConfig
-    - MooseX::FileAttribute
-    - File::Basename
     - Test::Class::Sugar
+    - Venn::Chart
+    - WWW::Mechanize
+
   Here, you want to concisely show a couple of SIMPLE use cases.  You should describe what you are doing and then write code that will run if pasted into a script.  
 
   For example:
