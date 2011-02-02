@@ -3175,6 +3175,8 @@ package MyApp::Command::breaking_spreading;
     use Moose;
     use Modern::Perl;
     use Data::Dumper;
+    use File::Temp;
+
 
     extends qw/MooseX::App::Cmd::Command/;
     with 'UCSC::Role';
@@ -3186,7 +3188,7 @@ package MyApp::Command::breaking_spreading;
         is            => 'rw',
         isa           => 'Str',
         traits        => ['Getopt'],
-        required      => 0,
+        required      => 1,
         documentation => 'File containing the positions of breaks of a given chromossome',
     );
 
@@ -3206,7 +3208,16 @@ package MyApp::Command::breaking_spreading;
         documentation => 'Name of the chromosome with break (if in the chrs_tab_file)',
     );
    
-   
+    has 'window_size' => (
+        is            => 'rw',
+        isa           => 'Int',
+        traits        => ['Getopt'],
+        required      => 1,
+        default       => 5000,
+        documentation => 'Window or bin size to search from break',
+    );
+
+    
 
     # MooseX::App:Cmd Execute method (call all your above methods bellow)
     # =================================================================================================
@@ -3222,23 +3233,23 @@ package MyApp::Command::breaking_spreading;
 
         my %chr_summary;
 
-        foreach  my $chr (keys %{$chrominfo} ){
-            next if ($chr =~ /random/ || $chr =~ /chr[YXM]/);
-            my $cmd = "wc -l ".$self->chrs_txt_dir."/".$chr.".txt";
+        foreach my $chr ( keys %{$chrominfo} ) {
+            next if ( $chr =~ /random/ || $chr =~ /chr[YXM]/ );
+            my $cmd    = "wc -l " . $self->chrs_txt_dir . "/" . $chr . ".txt";
             my $events = qx/$cmd/;
             chomp $events;
             $events =~ s/^(\d+).*/$1/;
-            if ($self->chr !~ /$chr/){
-                $total_size  += $chrominfo->{$chr}->{size};
+            if ( $self->chr !~ /$chr/ ) {
+                $total_size += $chrominfo->{$chr}->{size};
                 $total_of_events += $events;
                 $chr_summary{$chr}{events} = $events;
-                $chr_summary{$chr}{avg} = $events/$chrominfo->{$chr}->{size};
+                $chr_summary{$chr}{avg} = $events / $chrominfo->{$chr}->{size};
 
             }
-            else{
+            else {
                 $chr_break_size = $chrominfo->{$chr}->{size};
             }
-            
+
         }
 
         my $avg = $total_of_events/$total_size;
@@ -3254,6 +3265,60 @@ package MyApp::Command::breaking_spreading;
 
     }
 
+    sub parse_breakfile {
+        my ($self) = @_;
+
+        my %hash;
+
+        open( my $in, '<', $self->break_file );
+        
+        while ( my $row = <$in> ) {
+            chomp $row;
+            if ( $row =~ /^(\S+)\s+(\d+)\s+(\d+)/ ) {
+                %hash = (
+                    chr   => $1,
+                    start => $2,
+                    end   => $3,
+                );
+            }
+            else {
+                die "The break_file seems to be in a wrong format!";
+            }
+
+        }
+        close( $in );
+        
+        return \%hash;      
+        
+
+    }
+
+    sub search_break {
+        my ($self) = @_;
+        
+        my $break_info = $self->parse_breakfile();
+
+        # Create temporary bed file for windows
+        my $fh = File::Temp->new();
+        my $fname = $fh->filename;
+    
+        # Search left        
+        for (
+            my $i = $break_info->{start} - $self->window_size ;
+            $i >= 0 ;
+            $i = $i - $self->window_size
+          )
+        {
+            
+            say $fh $break_info->{chr}."\t".$i."\t".($i + $self->window_size - 1);
+            
+            
+        }
+
+        my $cmd = 'cut -f1,3 '.$self->chrs_txt_dir.'/'.$break_info->{chr}.'.txt.sorted | perl -pne \'$s = $1 +1 if $_ =~ /(\d+)$/;$_ =~ s/$/\t$s/\' |  coverageBed -a stdin -b '.$fname;
+        system($cmd);
+    }
+
     # method used to run the command
     sub execute {
         my ( $self, $opt, $args ) = @_;
@@ -3262,8 +3327,8 @@ package MyApp::Command::breaking_spreading;
         #my $only_b = qx/$cmd/;
         #chomp $only_b;
 
-        my $hash = $self->get_avg_and_chr_size();
-        print Dumper($hash);
+#        my $hash = $self->get_avg_and_chr_size();
+        $self->search_break
    
     }
 
