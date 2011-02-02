@@ -3330,7 +3330,7 @@ package MyApp::Command::breaking_spreading;
           )
         {
             
-            say $fh $break_info->{chr}."\t".($i - $self->window_size)."\t".$i;
+            say $fh $break_info->{chr}."\t".($i - $self->window_size)."\t".($i - 1);
             
             
         }
