@@ -3170,6 +3170,99 @@ package MyApp::Command::bed2venn;
 }
 1;
 
+package MyApp::Command::breaking_spreading;
+{
+    use Moose;
+    use Modern::Perl;
+
+    extends qw/MooseX::App::Cmd::Command/;
+    with 'UCSC::Role';
+
+    # Description of this command in first help
+    sub abstract { 'Given a chromosome with a break site position try to find how far of the break the number of events became similar to background.'; }
+
+    has 'break_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        required      => 0,
+        documentation => 'File containing the positions of breaks of a given chromossome',
+    );
+
+    has 'chrs_txt_dir' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        required      => 1,
+        documentation => 'STEP-8 directory path',
+    );
+
+    has 'chr' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        required      => 1,
+        documentation => 'Name of the chromosome with break (if in the chrs_tab_file)',
+    );
+   
+   
+
+    # MooseX::App:Cmd Execute method (call all your above methods bellow)
+    # =================================================================================================
+    
+    sub get_avg_and_chr_size {
+        my ($self) = @_;
+        
+        my $total_of_events;
+        my $total_size;
+        my $chr_break_size;
+
+        my $chrominfo = $self->get_chrominfo();
+
+        
+
+        foreach  my $chr (keys %{$chrominfo} ){
+            my $cmd = "wc -l ".$self->chrs_txt_dir."/".$chr.".txt";
+            my $events = qx/$cmd/;
+            chomp $events;
+            if ($self->chr !~ /$chr/){
+                $total_size  += $chrominfo->{$chr}->{size};
+                $total_of_events += $events;
+            }
+            else{
+                $chr_break_size = $chrominfo->{$chr}->{size};
+            }
+            
+        }
+
+        my $avg = $total_of_events/$total_size;
+
+        my %hash = (
+            avg            => $avg,
+            chr_break_size => $chr_break_size,
+        );
+
+        return \%hash;
+
+    }
+
+    # method used to run the command
+    sub execute {
+        my ( $self, $opt, $args ) = @_;
+
+        #my $cmd = "intersectBed -b '$f1' -a '$f2' -v | sort -k1,1 -k2n,2 -k3n,3 | uniq | wc -l";
+        #my $only_b = qx/$cmd/;
+        #chomp $only_b;
+
+        my $hash = $self->get_avg_and_chr_size();
+        print Dumper($hash);
+   
+    }
+
+
+}
+1;
+
 
 # Class Nussenzweig Translocations
 package MyApp::Command::Translocations_Pipeline;
