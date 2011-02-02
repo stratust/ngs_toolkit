@@ -3322,7 +3322,7 @@ package MyApp::Command::breaking_spreading;
        $fh = File::Temp->new();
        $fname = $fh->filename;
        my $hash = $self->get_avg_and_chr_size();
-        # Search left        
+        # Search right       
         for (
             my $i = $break_info->{start} + $self->window_size ;
             $i <= $hash->{chr_break_size} ;
@@ -3330,12 +3330,12 @@ package MyApp::Command::breaking_spreading;
           )
         {
             
-            say $fh $break_info->{chr}."\t".$i."\t".($i - $self->window_size + 1);
+            say $fh $break_info->{chr}."\t".($i - $self->window_size + 1)."\t".$i;
             
             
         }
 
-        my $cmd = 'cut -f1,3 '.$self->chrs_txt_dir.'/'.$break_info->{chr}.'.txt.sorted | perl -pne \'$s = $1 +1 if $_ =~ /(\d+)$/;$_ =~ s/$/\t$s/\' |  coverageBed -a stdin -b '.$fname;
+       $cmd = 'cut -f1,3 '.$self->chrs_txt_dir.'/'.$break_info->{chr}.'.txt.sorted | perl -pne \'$s = $1 +1 if $_ =~ /(\d+)$/;$_ =~ s/$/\t$s/\' |  coverageBed -a stdin -b '.$fname;
         my $right = qx/$cmd/;
 
         open( my $out, '>', "right.txt" );
