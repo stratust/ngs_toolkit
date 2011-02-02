@@ -3226,6 +3226,7 @@ package MyApp::Command::breaking_spreading;
             next if $chr =~ /random/;
             my $cmd = "wc -l ".$self->chrs_txt_dir."/".$chr.".txt";
             my $events = qx/$cmd/;
+            chomp $events;
             $events =~ s/^(\d+).*/$1/;
             if ($self->chr !~ /$chr/){
                 $total_size  += $chrominfo->{$chr}->{size};
