@@ -3174,6 +3174,7 @@ package MyApp::Command::breaking_spreading;
 {
     use Moose;
     use Modern::Perl;
+    use Data::Dumper;
 
     extends qw/MooseX::App::Cmd::Command/;
     with 'UCSC::Role';
