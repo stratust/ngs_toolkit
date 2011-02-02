@@ -3220,7 +3220,7 @@ package MyApp::Command::breaking_spreading;
 
         my $chrominfo = $self->get_chrominfo();
 
-        
+        my %chr_summary;
 
         foreach  my $chr (keys %{$chrominfo} ){
             next if $chr =~ /random/;
@@ -3230,6 +3230,9 @@ package MyApp::Command::breaking_spreading;
             if ($self->chr !~ /$chr/){
                 $total_size  += $chrominfo->{$chr}->{size};
                 $total_of_events += $events;
+                $chr_summary{$chr}{events} = $events;
+                $chr_summary{$chr}{avg} = $events/$chrominfo->{$chr}->{size};
+
             }
             else{
                 $chr_break_size = $chrominfo->{$chr}->{size};
@@ -3242,6 +3245,8 @@ package MyApp::Command::breaking_spreading;
         my %hash = (
             avg            => $avg,
             chr_break_size => $chr_break_size,
+            summary => \%chr_summary,
+
         );
 
         return \%hash;
