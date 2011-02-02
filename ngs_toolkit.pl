@@ -3223,7 +3223,7 @@ package MyApp::Command::breaking_spreading;
         my %chr_summary;
 
         foreach  my $chr (keys %{$chrominfo} ){
-            next if $chr =~ /random/;
+            next if ($chr =~ /random/ || $chr =~ /chr[YXM]/);
             my $cmd = "wc -l ".$self->chrs_txt_dir."/".$chr.".txt";
             my $events = qx/$cmd/;
             chomp $events;
