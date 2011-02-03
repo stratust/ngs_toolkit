@@ -3315,7 +3315,7 @@ package MyApp::Command::breaking_spreading;
             
         }
 
-        my $cmd = 'cut -f1,3 '.$self->chrs_txt_dir.'/'.$break_info->{chr}.'.txt.sorted | perl -pne \'$s = $1 +1 if $_ =~ /(\d+)$/;$_ =~ s/$/\t$s/\' |  coverageBed -a stdin -b '.$fname.' | sort -k2n,2';
+        my $cmd = 'cut -f1,3 '.$self->chrs_txt_dir.'/'.$break_info->{chr}.'.txt.sorted | perl -pne \'$s = $1 +1 if $_ =~ /(\d+)$/;$_ =~ s/$/\t$s/\' |  coverageBed -a stdin -b '.$fname.' | sort -k2rn,2';
         my $left = qx/$cmd/;
 
         # Create temporary bed file for windows
@@ -3337,6 +3337,56 @@ package MyApp::Command::breaking_spreading;
 
        $cmd = 'cut -f1,3 '.$self->chrs_txt_dir.'/'.$break_info->{chr}.'.txt.sorted | perl -pne \'$s = $1 +1 if $_ =~ /(\d+)$/;$_ =~ s/$/\t$s/\' |  coverageBed -a stdin -b '.$fname.' | sort -k2n,2';
         my $right = qx/$cmd/;
+        
+
+        open(my  $in, '<', \$left );
+        
+        my $b_start = 0;
+        my $low_count = 0;
+        while ( my $row = <$in> ){
+            chomp $row;
+            my ($chr,$start,$end,$hits) = split "\t", $row;
+            if ($hits >= 2){
+                $low_count =0;
+            }
+            else{ 
+                $low_count++;
+            }
+            
+            if ($low_count == 3){
+                $b_start = $start;
+                last;
+            }
+
+
+        }
+        close( $in );
+        
+        
+        open( $in, '<', \$right );
+        
+        my $b_end = 0;
+        $low_count = 0;
+        while ( my $row = <$in> ){
+            chomp $row;
+            my ($chr,$start,$end,$hits) = split "\t", $row;
+            if ($hits >= 2){
+                $low_count =0;
+            }
+            else{ 
+                $low_count++;
+            }
+            
+            if ($low_count == 3){
+                $b_end = $end;
+                last;
+            }
+
+
+        }
+        close( $in );
+        
+        say "$b_start-$b_end";
 
         open( my $out, '>', "right.txt" );
             print $out $right;
