@@ -3343,7 +3343,9 @@ package MyApp::Command::breaking_spreading;
         
         my $b_start = 0;
         my $low_count = 0;
+        my $n_windows;
         while ( my $row = <$in> ){
+            $n_windows++;
             chomp $row;
             my ($chr,$start,$end,$hits) = split "\t", $row;
             if ($hits >= 2){
@@ -3361,13 +3363,15 @@ package MyApp::Command::breaking_spreading;
 
         }
         close( $in );
-        
+        say "Merged windows left: $n_windows";
         
         open( $in, '<', \$right );
         
         my $b_end = 0;
         $low_count = 0;
+        $n_windows = 0;
         while ( my $row = <$in> ){
+            $n_windows++;
             chomp $row;
             my ($chr,$start,$end,$hits) = split "\t", $row;
             if ($hits >= 2){
@@ -3386,6 +3390,8 @@ package MyApp::Command::breaking_spreading;
         }
         close( $in );
         
+        say "Merged windows right: $n_windows";
+
         say "$b_start-$b_end";
 
         open( my $out, '>', "right.txt" );
