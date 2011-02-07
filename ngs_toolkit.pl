@@ -634,7 +634,7 @@ package MyApp::Role::PrimerType;
             $self->primer_chr(&_build_primer_chr);
             $self->primerF_start(&_build_primerF_start);
             $self->primerR_end(&_build_primerR_end);
-        }
+          }
     );
 
     has 'have_insert' => (
@@ -2169,11 +2169,14 @@ package Split::Clusters::Chrs;
     sub split_clusters_by_chrs {
         my ($self) = @_;
         open( my $in, '<', $self->input );
+        open( my $sam_out, '>', $self->output_path.'/cluster_partner.sam' );
+
 
         my %read;
         my $number_of_pairs;
         while ( my $pair_1 = <$in> ) {
             if ( $pair_1 =~ /^\@/ ) {
+                print $sam_out $pair_1;
                 next;
             }
             $number_of_pairs++;
@@ -2189,13 +2192,13 @@ package Split::Clusters::Chrs;
 
             # Find primer (F or R) and mate who have the primer (1 or 2);
             
-            $self->primer_type('igh');
+            #           $self->primer_type('igh');
             my $mate_primer = $self->find_mate_primer($pair_1);
 
-            unless ($mate_primer){
-                $self->primer_type('myc');
-                $mate_primer = $self->find_mate_primer($pair_1);
-            }
+            #unless ($mate_primer){
+            #    $self->primer_type('myc');
+            #    $mate_primer = $self->find_mate_primer($pair_1);
+            #}
             
             my $key;
             my $alignment;
@@ -2204,12 +2207,14 @@ package Split::Clusters::Chrs;
                 $hash{id}  = $id1;
                 $hash{pos} = $pos_read2;
                 push( @{ $read{$chr_2} }, \%hash );
+                print $sam_out  $pair_1;
             }
             elsif ($mate_primer =~ m/2/) {
                 my %hash;
                 $hash{id}  = $id1;
                 $hash{pos} = $pos_read1;
                 push( @{ $read{$chr_1} }, \%hash );
+                print $sam_out  $pair_2;
             }
             else{
                 die "Could not find Mate Primer!";
@@ -2217,7 +2222,7 @@ package Split::Clusters::Chrs;
 
         }
         close($in);
-
+        close($sam_out);
         my %chr_number;
 
         foreach my $key ( keys %read ) {
@@ -2944,8 +2949,8 @@ package MyApp::Command::Get_DNA_from_Bed;
     extends 'MooseX::App::Cmd::Command', 'Get::UCSC::DNA';
     use MooseX::FileAttribute;
     
-    has '+seq_name' => (traits => ['NoGetopt']);
-    has_file 'input' => ( is => 'rw', documentation => 'BED file' );
+    has '+seq_name'    => ( traits => ['NoGetopt'] );
+    has_file 'input'   => ( is => 'rw', documentation => 'BED file' );
     has 'before_start' => ( isa => 'Int',  is => 'rw', documentation => '5\' padding' );
     has 'after_end'    => ( isa => 'Int',  is => 'rw', documentation => '3\' padding' );
     has 'masked'       => ( isa => 'Bool', is => 'rw', documentation => 'Masked repeats with N' );
