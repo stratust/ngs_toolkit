@@ -2207,14 +2207,14 @@ package Split::Clusters::Chrs;
                 $hash{id}  = $id1;
                 $hash{pos} = $pos_read2;
                 push( @{ $read{$chr_2} }, \%hash );
-                print $sam_out  $pair_1;
+                print $sam_out  $pair_2;
             }
             elsif ($mate_primer =~ m/2/) {
                 my %hash;
                 $hash{id}  = $id1;
                 $hash{pos} = $pos_read1;
                 push( @{ $read{$chr_1} }, \%hash );
-                print $sam_out  $pair_2;
+                print $sam_out  $pair_1;
             }
             else{
                 die "Could not find Mate Primer!";
