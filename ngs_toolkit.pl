@@ -2133,7 +2133,7 @@ sub cluster_translocations {
     print $info "Cut-off:                  >" . $self->cluster_cutoff . "\n";
     print $info
       "--------------------------------------------------------------\n";
-    print $info Dumper(%unique);
+#    print $info Dumper(%unique);
     close($info);
 
     print "  Filter Information\n";
