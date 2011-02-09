@@ -1976,6 +1976,7 @@ package Cluster::Translocations;
     use MooseX::FileAttribute;
     use File::Basename;
     with 'MyApp::Role::PrimerType';
+    use Data::Dumper;
 
     # Class attributes (program options - MooseX::Getopt)
     has_file 'input' => (
@@ -2049,6 +2050,23 @@ sub cluster_translocations {
         my ( $id2, $flag2, $chr_2, $pos_read2, $maq2, $cirgar2, $chr_mate2,
             $pos_mate2 )
           = split( "\t", $pair_2 );
+        
+        #Skip sequences with both pairs in the same strand
+        my $o1;
+        if ( $flag1 & 16 ) {
+            $o1 = "R";
+        }
+        else {
+            $o1 = "F";
+        }
+         my $o2;
+        if ( $flag2 & 16 ) {
+            $o2 = "R";
+        }
+        else {
+            $o2 = "F";
+        }
+        next if $o1 eq $o2;
 
         # Find primer (F or R) and mate who have the primer (1 or 2);
         my $mate_primer = $self->find_mate_primer($pair_1);
@@ -2056,12 +2074,14 @@ sub cluster_translocations {
         my $key;
         # If the primer is on  first mate
         if ($mate_primer =~ m/1/){
-            $key = "$flag1|$flag2|$chr_2|$pos_read2";
+#            $key = "$flag1|$flag2|$chr_2|$pos_read2";
+            $key = "$o2|$chr_2|$pos_read2";
         }
 
         # If the primer is on  second  mate
         elsif ( $mate_primer =~ m/2/){
-            $key = "$flag2|$flag1|$chr_1|$pos_read1";
+            #           $key = "$flag2|$flag1|$chr_1|$pos_read1";
+            $key = "$o1|$chr_1|$pos_read1";
         }
         # Or no primer found
         else{
@@ -2070,8 +2090,10 @@ sub cluster_translocations {
 
         if ( defined $unique{$key} ) {
             $unique{$key}{count}++;
+            push(@{$unique{$key}{others_alignments}},$pair_1.$pair_2);
         }
         else {
+
             $unique{$key}{alignment} = $pair_1 . $pair_2;
             $unique{$key}{count}++;
             $unique{$key}{primer} = $self->find_primer_orientation( $pair_1 );
@@ -2097,9 +2119,9 @@ sub cluster_translocations {
 
     }
     close($out);
-
+ 
     my $number_of_clusters = $i;
-
+        
     $number_of_clusters = 0 unless $number_of_clusters;
     $number_of_pairs    = 0 unless $number_of_pairs;
 
@@ -2111,6 +2133,7 @@ sub cluster_translocations {
     print $info "Cut-off:                  >" . $self->cluster_cutoff . "\n";
     print $info
       "--------------------------------------------------------------\n";
+    print $info Dumper(%unique);
     close($info);
 
     print "  Filter Information\n";
