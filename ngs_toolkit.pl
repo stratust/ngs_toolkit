@@ -1335,7 +1335,16 @@ package RemoveBarcode;
         traits        => ['Getopt'],
         documentation => 'Boolean. Use the Bio::SeqIO::fastq to parse files. Should be slow. (default: 0)',
     );
-    
+  
+    has 'exact_match' => (
+        isa           => 'Bool',
+        is            => 'rw',
+        required      => 0,
+        default     => 0,
+        traits        => ['Getopt'],
+        documentation => 'Exact Match the barcode. (default: 0)',
+    );
+  
     # Make main attribute output_path required
     has '+output_path' => (
         required      => 1,
@@ -1586,6 +1595,7 @@ package RemoveBarcode;
 
         # Get barcode regex
         my @index = $self->index_barcode_string();
+        my $barcode = $self->barcode;
 
         my $total_seq                = 0;
         my $total_match              = 0;
@@ -1624,9 +1634,9 @@ package RemoveBarcode;
             my ( $sid1, $sequence1, $quality1 );
             ( $sid1, $sequence1, $quality1 ) = ( $1, $2, $3 )
               if ( $seq1 =~ /^(\S+)\n(\S+)\n\S+\n(\S+)\n/ );
-            foreach my $regex (@index) {
 
-                if ( $sequence1 =~ m/^$regex/i ) {
+            if ( $self->exact_match ) {
+                if ( $sequence1 =~ m/^$barcode/i ) {
                     my $seq_truncated = substr $sequence1, $+[0],
                       length $sequence1;
                     my $qual_truncated = substr $quality1, $+[0],
@@ -1638,33 +1648,75 @@ package RemoveBarcode;
 
                     $seq1_truncated = 1;
                     $c_match++;
-                    last;
+                }
+
+            }
+            else {
+                foreach my $regex (@index) {
+
+                    if ( $sequence1 =~ m/^$regex/i ) {
+                        my $seq_truncated = substr $sequence1, $+[0],
+                          length $sequence1;
+                        my $qual_truncated = substr $quality1, $+[0],
+                          length $quality1;
+                        $seq1 =
+                          "$sid1\n$seq_truncated\n\+$sid1\n$qual_truncated\n";
+
+                        #$seq1 =~ s/\Q$sequence\E/\Q$seq_truncated\E/;
+                        #$seq1 =~ s/\Q$quality\E/\Q$qual_truncated\E/;
+
+                        $seq1_truncated = 1;
+                        $c_match++;
+                        last;
+                    }
                 }
             }
-
             my $seq2_truncated = 0;
 
             my ( $sid2, $sequence2, $quality2 );
             ( $sid2, $sequence2, $quality2 ) = ( $1, $2, $3 )
               if ( $seq2 =~ /^(\S+)\n(\S+)\n\S+\n(\S+)\n/ );
 
-            #        exit if $total_seq == 4;
-            foreach my $regex (@index) {
-                if ( $sequence2 =~ m/^$regex/i ) {
-                    my $seq_truncated = substr $sequence2, $+[0],
-                      length $sequence2;
-                    my $qual_truncated = substr $quality2, $+[0],
-                      length $quality2;
+            if ( $self->exact_match ) {
+                    if ( $sequence2 =~ m/^$barcode/i ) {
+                        my $seq_truncated = substr $sequence2, $+[0],
+                          length $sequence2;
+                        my $qual_truncated = substr $quality2, $+[0],
+                          length $quality2;
 
-                    $seq2 = "$sid2\n$seq_truncated\n\+$sid2\n$qual_truncated\n";
+                        $seq2 =
+                          "$sid2\n$seq_truncated\n\+$sid2\n$qual_truncated\n";
 
-                    #$seq2 =~ s/\Q$sequence\E/\Q$seq_truncated\E/;
-                    #$seq2 =~ s/\Q$quality\E/\Q$qual_truncated\E/;
+                        #$seq2 =~ s/\Q$sequence\E/\Q$seq_truncated\E/;
+                        #$seq2 =~ s/\Q$quality\E/\Q$qual_truncated\E/;
 
-                    $seq2_truncated = 1;
+                        $seq2_truncated = 1;
 
-                    $c_match++;
-                    last;
+                        $c_match++;
+                    }
+
+            }
+            else {
+
+                #        exit if $total_seq == 4;
+                foreach my $regex (@index) {
+                    if ( $sequence2 =~ m/^$regex/i ) {
+                        my $seq_truncated = substr $sequence2, $+[0],
+                          length $sequence2;
+                        my $qual_truncated = substr $quality2, $+[0],
+                          length $quality2;
+
+                        $seq2 =
+                          "$sid2\n$seq_truncated\n\+$sid2\n$qual_truncated\n";
+
+                        #$seq2 =~ s/\Q$sequence\E/\Q$seq_truncated\E/;
+                        #$seq2 =~ s/\Q$quality\E/\Q$qual_truncated\E/;
+
+                        $seq2_truncated = 1;
+
+                        $c_match++;
+                        last;
+                    }
                 }
             }
 
@@ -1699,6 +1751,7 @@ package RemoveBarcode;
         print $out_info "Filter Information\n";
         print $out_info
           "-------------------------------------------------------------\n\n";
+        print $out_info "Exact Match:                   ".$self->exact_match."\n";
         print $out_info "Total of sequences:            $total_seq\n";
         print $out_info "Total of matched sequences:    $total_match\n";
         print $out_info "Total of matched seq file1:    $total_match_file1\n";
@@ -1715,6 +1768,7 @@ package RemoveBarcode;
         print "Filter Information\n";
         print
           "-------------------------------------------------------------\n\n";
+        print "Exact Match:                   ".$self->exact_match."\n";
         print "Total of sequences:            $total_seq\n";
         print "Total of matched sequences:    $total_match\n";
         print "Total of matched seq file1:    $total_match_file1\n";
@@ -3470,7 +3524,16 @@ package MyApp::Command::Translocations_Pipeline;
     
     # Class attributes (program options - MooseX::Getopt)
     has '+configfile' => ( required => 0 );
-  
+ 
+    has 'exact_match' => (
+        isa           => 'Bool',
+        is            => 'rw',
+        required      => 0,
+        default     => 0,
+        traits        => ['Getopt'],
+        documentation => 'Exact Match the barcode. (default: 0)',
+    );
+ 
     # Creating STEPs directories attributes
     my @dir_name = (
         'STEP1-barcode_filtered',
@@ -3531,6 +3594,7 @@ package MyApp::Command::Translocations_Pipeline;
             seq1 => $self->seq1,
             seq2 => $self->seq2,
             output_path => $step_path,
+            exact_match => $self->exact_match,
         );
         
         $barcode->filter_fastq_nobioperl();
