@@ -2120,7 +2120,9 @@ sub cluster_translocations {
         else {
             $o2 = "F";
         }
-        next if $o1 eq $o2;
+        # Skip R and R and F and F sequences
+        # PS: can't do that because rearrangements can allow RR and FF
+        #next if $o1 eq $o2;
 
         # Find primer (F or R) and mate who have the primer (1 or 2);
         my $mate_primer = $self->find_mate_primer($pair_1);
@@ -2187,7 +2189,7 @@ sub cluster_translocations {
     print $info "Cut-off:                  >" . $self->cluster_cutoff . "\n";
     print $info
       "--------------------------------------------------------------\n";
-#    print $info Dumper(%unique);
+    print $info Dumper(%unique);
     close($info);
 
     print "  Filter Information\n";
