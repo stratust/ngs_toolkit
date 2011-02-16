@@ -1894,7 +1894,7 @@ package Search::Rearranged::Pairs;
                     $read_size = 36;
                 }
                 else {
-                    $read_size = 54;
+                    $read_size = 59;
                 }
 
                 my ( $primerF_start, $primerR_end, $chr ) = ($self->primerF_start, $self->primerR_end, $self->primer_chr);
@@ -2900,7 +2900,95 @@ package Venn::BED::Two;
 
 }
 1;
+1;
 
+package Remove::From::List;
+{
+    use Moose;
+
+    has 'list_a' => (
+        is          => 'rw',
+        isa         => 'Str',
+        traits      => ['Getopt'],
+        cmd_aliases => 'a',
+        required    => 1,
+        documentation =>
+'List that will be compared with list b and intersection will be removed',
+    );
+
+    has 'list_b' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases   => 'b',
+        required      => 1,
+        documentation => 'List b (fasta format)',
+    );
+
+    has 'output' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        required      => 1,
+        documentation => 'Output file',
+    );
+
+=head2 get_elements_in_B
+
+ Title   : get_elements_in_B
+ Usage   : get_elements_in_B()
+ Function: Build an array with Ids from a fasta file
+ Returns : A reference to an Array
+ Args    : 
+
+=cut 
+
+    sub get_elements_in_B {
+        my ($self) = @_;
+        open( my $in, '<', $self->list_b );
+        my @list;
+        while ( my $row = <$in> ) {
+            chomp $row;
+            push( @list, $1 ) if ( $row =~ /^\>(\S+)/ );
+        }
+        close($in);
+        return \@list;
+
+    }
+
+=head2 remove_elements_from_list
+
+ Title   : remove_elements_from_list
+ Usage   : remove_elements_from_list()
+ Function: 
+ Returns : 
+ Args    : 
+
+=cut 
+
+    sub remove_elements_from_list {
+        my ($self) = @_;
+
+        my $list_b = $self->get_elements_in_B();
+
+        open( my $in,  '<', $self->list_a );
+        open( my $out, '>', $self->output );
+        while ( my $row = <$in> ) {
+            if ($row =~ /^@/){
+                print $out $row;
+                next;
+            }
+
+            my $id;
+            $id = $1 if $row =~ /^(\S+)\t/;
+            print $out $row unless ( $id ~~ $list_b );
+        }
+        close($out);
+        close($in);
+
+    }
+
+}
 1;
 
 #-------------------------------------------------------------------------------------------------------
@@ -3227,32 +3315,6 @@ package MyApp::Command::bed2html;
 }
 1;
 
-package MyApp::Command::bed2venn;
-{
-    use Moose;
-    use Modern::Perl;
-
-    extends qw/MooseX::App::Cmd::Command Venn::BED::Two/;
-
-    # Description of this command in first help
-    sub abstract { 'Receive 2 BED files and generate a Venn diagram.'; }
-      
-
-    # MooseX::App:Cmd Execute method (call all your above methods bellow)
-    # =================================================================================================
-
-    # method used to run the command
-    sub execute {
-        my ( $self, $opt, $args ) = @_;
-
-        $self->generate_diagram();
-        
-        
-    }
-
-
-}
-1;
 
 package MyApp::Command::breaking_spreading;
 {
@@ -3536,6 +3598,23 @@ package MyApp::Command::Translocations_Pipeline;
         documentation => 'Exact Match the barcode. (default: 0)',
     );
  
+    has 'wolfgang_params' => (
+        isa           => 'Bool',
+        is            => 'rw',
+        required      => 0,
+        default     => 1,
+        traits        => ['Getopt'],
+        documentation => 'Use Wolfgang\'s params. (default: 1)',
+    );
+    has 'long_reads' => (
+        isa           => 'Bool',
+        is            => 'rw',
+        required      => 0,
+        default     => 0,
+        traits        => ['Getopt'],
+        documentation => 'Turn on when using reads higher than 36bp. (default: 0)',
+    );
+
     # Creating STEPs directories attributes
     my @dir_name = (
         'STEP1-barcode_filtered',
@@ -3785,10 +3864,52 @@ sub step6 {
     $object->search_rearranged_pairs;
 
     print "Convert Translocated Pairs to BAM list ...\n";
+    if ($self->wolfgang_params){
+        if ($self->long_reads){
+            if ($self->primer_type =~ /igh/i){
+                system("echo \">left\nACTGTGGCTGCCTCTGGCTTACCATTTGCGGTGCCTGGTTTCGGAGAGGTCCAGAGTCT\" > $step_path/primers.fa;");
+                system("echo \">right\nCAGAAGCCACAACCATACATTCCCAGGTCTGGGTGGGAGACCCAAAGTCCAGGCCTACC\" >> $step_path/primers.fa;");
+            }
+            if ($self->primer_type =~ /myc/i){
+                system("echo \">left\nCTTGGGGGAAACCAGAGGGAATCCTCACATTCCTACTTGGGATCCGCGGGTATCCCTCG\" > $step_path/primers.fa;");
+                system("echo \">right\nCACCCAGTGCTGAATCGCTGCAGGGTCTCTGGTGCAGTGGCGTCGCGGTTTAGAGTGTA\" >> $step_path/primers.fa;");
+            }
+        }
+        else{
+             if ($self->primer_type =~ /igh/i){
+                system("echo \">left\nACTGTGGCTGCCTCTGGCTTACCATTTGCGGTGCCT\" > $step_path/primers.fa;");
+                system("echo \">right\nGGTAGGCCTGGACTTTGGGTCTCCCACCCAGACCTG\" >> $step_path/primers.fa;");
+            }
+            if ($self->primer_type =~ /myc/i){
+                system("echo \">left\nCTTGGGGGAAACCAGAGGGAATCCTCACATTCCTAC\" > $step_path/primers.fa;");
+                system("echo \">right\nTACACTCTAAACCGCGACGCCACTGCACCAGAGACC\" >> $step_path/primers.fa;");
+            }
+       
+        }
+
+        # Create index
+        system("bowtie-build $step_path/primers.fa $step_path/primers &> /dev/null");
+        # Run bowtie
+        my $bowtie_opts =  "-v2 -k2 -m1 --threads=4 --suppress=2,4,5,6,7 --un unaligned_primers.fa";
+        # Getting primers
+        system(' perl -lane \'print ">$F[0]\n$F[9]" if ($F[5] == 36 || $F[5] == 59)\' '.$step_path.'/translocated_pairs.sam | bowtie '.$bowtie_opts.' '.$step_path.'/primers --un '.$step_path.'/unaligned_primers.fa -f - > '.$step_path.'/valid_primers.txt');
+        my $remove_list = Remove::From::List->new( 
+            list_a => "$step_path/translocated_pairs.sam",
+            list_b => "$step_path/unaligned_primers.fa",
+            output => "$step_path/translocated_pairs_removed_primers.sam",
+        );
+        $remove_list->remove_elements_from_list;
+        system("rm $step_path/translocated_pairs.sam");
+        system("mv $step_path/translocated_pairs_removed_primers.sam $step_path/translocated_pairs.sam");
+        
+
+    }
+
     system("samtools view -bS -o $step_path/translocated_pairs.bam  $step_path/translocated_pairs.sam");
 
-    print "Sorting Translocated Pairs to BAM list ...\n";
-    system("samtools sort $step_path/translocated_pairs.bam  $step_path/translocated_pairs.sorted");
+    #print "Sorting Translocated Pairs to BAM list ...\n";
+    #system("samtools sort $step_path/translocated_pairs.bam  $step_path/translocated_pairs.sorted");
+    #
 
 }
 
