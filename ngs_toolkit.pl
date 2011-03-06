@@ -2104,6 +2104,7 @@ sub cluster_translocations {
         my ( $id2, $flag2, $chr_2, $pos_read2, $maq2, $cirgar2, $chr_mate2,
             $pos_mate2 )
           = split( "\t", $pair_2 );
+
         
         #Skip sequences with both pairs in the same strand
         my $o1;
@@ -2113,7 +2114,8 @@ sub cluster_translocations {
         else {
             $o1 = "F";
         }
-         my $o2;
+
+        my $o2;
         if ( $flag2 & 16 ) {
             $o2 = "R";
         }
@@ -2133,7 +2135,6 @@ sub cluster_translocations {
 #            $key = "$flag1|$flag2|$chr_2|$pos_read2";
             $key = "$o2|$chr_2|$pos_read2";
         }
-
         # If the primer is on  second  mate
         elsif ( $mate_primer =~ m/2/){
             #           $key = "$flag2|$flag1|$chr_1|$pos_read1";
@@ -2149,19 +2150,21 @@ sub cluster_translocations {
             push(@{$unique{$key}{others_alignments}},$pair_1.$pair_2);
         }
         else {
-
             $unique{$key}{alignment} = $pair_1 . $pair_2;
             $unique{$key}{count}++;
             $unique{$key}{primer} = $self->find_primer_orientation( $pair_1 );
-
         }
-
     }
 
     my $i;
+    my $chrM_count=0;
     foreach my $key ( keys %unique ) {
         my $count = $unique{$key}{count};
         next if $count <= $self->cluster_cutoff;
+        if ($key =~ /chrM/i){
+            $chrM_count++;
+            next;
+        }
         $i++;
         my $alignment = $unique{$key}{alignment};
         my $pair_id;
@@ -2186,6 +2189,7 @@ sub cluster_translocations {
       "--------------------------------------------------------------\n";
     print $info "Total of pairs:           " . $number_of_pairs . "\n";
     print $info "Total of clusters:        " . $number_of_clusters . "\n";
+    print $info "Total of clusters chrM:   " . $chrM_count . "\n";
     print $info "Cut-off:                  >" . $self->cluster_cutoff . "\n";
     print $info
       "--------------------------------------------------------------\n";
@@ -2196,6 +2200,7 @@ sub cluster_translocations {
     print "--------------------------------------------------------------\n";
     print "Total of pairs:           " . $number_of_pairs . "\n";
     print "Total of clusters:        " . $number_of_clusters . "\n";
+    print "Total of clusters chrM:   " . $chrM_count . "\n";
     print "Cut-off:                  >" . $self->cluster_cutoff . "\n";
     print "--------------------------------------------------------------\n";
 
@@ -3570,6 +3575,46 @@ package MyApp::Command::breaking_spreading;
 }
 1;
 
+
+package MyApp::Command::binBed;
+{
+    use Moose;
+
+    # Working with files and directories as attributes
+    extends 'MooseX::App::Cmd::Command';
+    use Data::Dumper;
+
+    has 'chr'          => ( isa => 'Str',  is => 'rw', documentation => 'Chromosome', required => 1 );
+    has 'start'        => ( isa => 'Int',  is => 'rw', documentation => 'Start Position', required => 1 );
+    has 'end'          => ( isa => 'Int',  is => 'rw', documentation => 'End Position', required => 1 );
+    has 'bin_size' => ( isa => 'Int',  is => 'rw', documentation => 'Bin size in base pairs' );
+
+    # MooseX::App:Cmd Execute method (call all your above methods bellow)
+    # =================================================================================================
+    # Description of this command in first help
+    sub abstract { 'Generate a BED file dividing a chromossome position in bins with a defined size.'; }
+
+    # method used to run the command
+    sub execute {
+        my ( $self, $opt, $args ) = @_;
+         
+        my ($start_aux, $end_aux);
+        # Bed files are zero based
+         for (my $var = ($self->start -1 ); $var < $self->end ; $var+= $self->bin_size) {
+             $start_aux = $var;
+             $end_aux = $start_aux + $self->bin_size;
+             my @row = (
+                 $self->chr,
+                $start_aux,
+                $end_aux,                 
+             );
+             say join("\t",@row);
+         }
+
+    }
+
+}
+1;
 
 # Class Nussenzweig Translocations
 package MyApp::Command::Translocations_Pipeline;
