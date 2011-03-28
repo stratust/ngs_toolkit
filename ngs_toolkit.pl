@@ -3291,13 +3291,15 @@ package MyApp::Command::bed2html;
             $html_file .= "</td>";
 
             my ( $start, $end ) = ( $f[1], $f[2] );
+#"<a href='http://maclab.dyndns-home.com/cgi-bin/hgTracks?clade=mammal&org=Mouse&db=mm9&position=$f[0]:"
 
             $html_file .= "<td>";
             $html_file .=
-"<a href='http://maclab.dyndns-home.com/cgi-bin/hgTracks?clade=mammal&org=Mouse&db=mm9&position=$f[0]:"
+"<a href='http://genome.ucsc.edu/cgi-bin/hgTracks?clade=mammal&org=Mouse&db=mm9&position=$f[0]:"
+
               . ($start) . "-"
               . ( $end + 54 )
-              . "&hgtsuggest=&pix=1800&Submit=submit&hgsid=168' target='_blank'>See region</a>";
+              . "&hgtsuggest=&pix=1800&Submit=submit&hgsid=190269563' target='_blank'>See region</a>";
             $html_file .= "</td>";
 
             $html_file .= "</tr>";
