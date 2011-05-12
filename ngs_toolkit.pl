@@ -224,8 +224,13 @@ package UCSC::Role;
         my $index     = $cache->get($key_index);
 
         unless ($index) {
+
+            say "[I] Generating Gene Index";
+            say "\t[II] Fetching kgXref";
             my $kgXref = $self->_fetch_kgXref;
+            say "\t[II] Fetching knownToEnsembl";
             my $kgEns  = $self->_fetch_knownToEnsembl;
+            say "\t[II] Fetching kgAlias";
             my $kgSymbol  = $self->_fetch_kgAlias;
 
             $index = $kgXref;
@@ -273,19 +278,21 @@ package UCSC::Role;
 
         my %aux;
         my %selectedFields = (
-            'hgta_fs.check.mm9.kgXref.kgID'       => 1,
-            'hgta_fs.check.mm9.kgXref.geneSymbol' => 1,
-            'hgta_fs.check.mm9.kgXref.refseq'     => 1,
+            'hgta_fs.check.'.$self->genome.'.kgXref.kgID'       => 1,
+            'hgta_fs.check.'.$self->genome.'.kgXref.geneSymbol' => 1,
+            'hgta_fs.check.'.$self->genome.'.kgXref.refseq'     => 1,
         );
+
 
         my $file = $self->fetch_ucsc_table( 'kgXref', 'selectedFields',\%selectedFields );
 
         open( my $in, '<', \$file );
 
-        while ( my $row = <$in> ) {
+        while ( my $row = <$in> ) {            
             next if $row =~ /^#/;
             chomp $row;
             my @f = split( /\s+/, $row );
+            die "Error with kgXref:\n $file" if $f[0] =~ /^---/;
             my ( $kg, $symbol, $refseq ) = ( $f[0], $f[1], $f[2] );
             $aux{'kg'}->{$kg} = {
                 'refseq' => $refseq,
@@ -320,6 +327,7 @@ package UCSC::Role;
         return \%aux;
 
     }
+
 
 =head2 _fetch_kgAlias
 
@@ -372,6 +380,7 @@ package UCSC::Role;
 
         # Accessing URL
         $mech->get($url);
+        say $url;
        
         my $ta;
         if ($format =~ /bed/){
@@ -412,7 +421,6 @@ package UCSC::Role;
         }
 
         return $mech->content;
-
     }
 
 
@@ -551,6 +559,44 @@ package UCSC::Role;
     }
 
 
+=head2 get_refseq_bed_with_symbol
+
+ Title   : get_refseq_bed_with_symbol
+ Usage   : get_refseq_bed_with_symbol()
+ Function: 
+ Returns : 
+ Args    : 
+
+=cut 
+
+sub get_refseq_bed_with_symbol {
+    my($self) = @_;
+    
+    my $feats = $self->get_ucsc_features('refGene');
+  
+    my $string;
+    foreach my $feat ( @{$feats} ){
+        my @f;
+        push(@f,$feat->chrom);
+        push(@f,$feat->chromStart);
+        push(@f,$feat->chromEnd);
+        if ($feat->symbol) {
+            push(@f,$feat->symbol);
+        }
+        else{
+            push(@f,$feat->refseq);
+        }
+        push(@f,$feat->strand);
+        
+        push(@f,$feat->kg) if $feat->kg;
+        push(@f,$feat->ensembl) if $feat->ensembl;
+
+        $string .= join("\t",@f)."\n";
+    }
+
+    return $string;
+}
+
 
 =head2 _fetch_chrominfo
 
@@ -580,7 +626,6 @@ package UCSC::Role;
         return \%aux;
 
     }
-
     
 
 =head2 get_chrominfo
@@ -2907,6 +2952,7 @@ package Venn::BED::Two;
 1;
 1;
 
+
 package Remove::From::List;
 {
     use Moose;
@@ -4031,6 +4077,124 @@ sub execute {
 }
 1;
 
+package MyApp::Command::Translocations_Alternative;
+{
+    use Moose;
+    use 5.10.0;
+    use MooseX::FileAttribute;
+    use File::Basename;
+
+    import RemoveBarcode;
+    import MyApp::Base::Bowtie;
+    import Search::Rearranged::Pairs;
+    import Cluster::Translocations;
+
+    extends 'MooseX::App::Cmd::Command', 'MyApp::Base::Config';
+    with 'MyApp::Role::BaseAttributes', 'MyApp::Role::Bowtie', 'MyApp::Role::PrimerType';
+
+
+    # Description of this command in first help
+    sub abstract { 'Alternative pipeline for translocation analysis.'; }
+
+
+=cut
+IgH primer overview
+================================================================================
+Each IgH lane has a forward and reverse experiment flanking the IsceI site.
+The IgH forward and reverse primers, according to the PPT:
+
+    fw:  GGTAGGCCTGGACTTTGGGTC
+    rev: ACTGTGGCTGCCTCTGGCTTAC [first A is non-templated]
+
+I found these sequences in the IgH locus at the following coordinates ( 
+primers in upper case):
+
+range=chr12:114664844-114665029 5'pad=0 3'pad=0 strand=+
+repeatMasking=none
+
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+          GCTGTGGCTGCCTCTGGCTTACcatttgcggtgcctggtttcggagaggtccagagtctt
+          cgacaccgacggagaccgaatggtaaacgccacggaccaaagcctctccaggtctcagaa
+
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+          tgtgtggaattgttccttcaaagccaccgaggctggctggtccatgagcagccaggtgga
+          acacaccttaacaaggaagtttcggtggctccgaccgaccaggtactcgtcggtccacct
+
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+          tgggtggcagaagccacaaccatacattcccaggtctgggtgggagacccaaagtccagg
+          acccaccgtcttcggtgttggtatgtaagggtccagacccaccctCTGGGTTTCAGGTCC
+
+          ----:-
+          cctacc
+          GGATGG
+
+So it would seem that they were mislabled in the presentation.
+Since the reads were 59 nts long, at least one read has to match the
+primer + 38/37 template nts.  Since the reads are long, a prefect
+match should not be required.  Instead, i will allow up to 2 mismatches.
+
+The first approach to try out would be to generate a bowtie index of the
+two ends of this sequence and align each individual end of the pairs
+to this index.  output only a few of the columns for later parsing
+to pick valid pairs and output the ends that will be aligned to
+the genome
+
+cMyc primer overview
+================================================================================
+fw:  CTTGGGGGAAACCAGAGGGAATC
+rev: TACACTCTAAACCGCGACGCC
+
+mapped to the following region of cMyc (primers in upper case). This time the
+fw primer is actually the forward primer
+
+mm9_dna
+range=chr15:61818182-61818392 5'pad=0 3'pad=0 strand=+
+repeatMasking=none
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+          CTTGGGGGAAACCAGAGGGAATCctcacattcctacttgggatccgcgggtatccctcgc
+          gaaccccctttggtctcccttaggagtgtaaggatgaaccctaggcgcccatagggagcg
+
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+          gcccctgaattgctaggaagactgcggtgagtcgtgatctgagcggttccgtaacagctg
+          cggggacttaacgatccttctgacgccactcagcactagactcgccaaggcattgtcgac
+
+          ----:----|----:----|----:----|----:----|----:----|----:----|
+          ctaccctcggcggggagagggaagacgccctgcacccagtgctgaatcgctgcagggtct
+          gatgggagccgcccctctcccttctgcgggacgtgggtcacgacttagcgacgtcccaga
+
+          ----:----|----:----|----:----|-
+          ctggtgcagtggcgtcgcggtttagagtgta
+          gaccacgtcaCCGCAGCGCCAAATCTCACAT
+
+
+Lanes
+================================================================================
+Note that lane 5 is phix
+
+Finding valid pairs
+================================================================================
+##begin s
+fq_dir=/Users/wolfgang/101101_HWI-EAS738_00038_GGC_Casellas
+data_dir=/Volumes/data/wolfgang_analyis/forThiago/data_first_run
+combo_dir=/Volumes/data/wolfgang_analyis/forThiago/combo_data
+tbin=/Volumes/data/wolfgang_analyis/forThiago
+
+
+=cut
+ 
+    # STEP1
+    # Align primer
+
+    # method used to run the command
+    sub execute {
+        my ( $self, $opt, $args ) = @_;
+    }
+
+
+}
+1;
+
+
 package MyApp::Command::Hotspot_Finder;
 {
     use Moose;
@@ -4312,6 +4476,30 @@ sub execute {
 
 }
 1;
+
+package MyApp::Command::Get_Refseq; 
+{
+    use Moose;
+    use 5.10.0;
+
+    extends qw/MooseX::App::Cmd::Command/;
+    with 'UCSC::Role';
+
+    # Description of this command in first help
+    sub abstract { 'Get the UCSC refGene in Bed Format with symbol if available.'; }
+
+
+    # method used to run the command
+    sub execute {
+        my ($self, $opt, $args ) = @_;
+        
+        print $self->get_refseq_bed_with_symbol;
+    }
+
+
+}
+1;
+
 
 #-------------------------------------------------------------------------------------------------------
 # TESTING METHODS 
