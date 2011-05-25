@@ -176,6 +176,7 @@ package UCSC::Role;
     use WWW::Mechanize;
     use Bio::FeatureIO;
     use Cache::FastMmap;
+    use Data::Dumper;
 
     import MyApp::Feature::Bed;
 
@@ -232,25 +233,97 @@ package UCSC::Role;
             my $kgEns  = $self->_fetch_knownToEnsembl;
             say "\t[II] Fetching kgAlias";
             my $kgSymbol  = $self->_fetch_kgAlias;
+            say "\t[II] Fetching refFlat";
+            my $refSymbol  = $self->_fetch_refFlat;
+            say "\t[II] Fetching knownToRefSeq";
+            my $kgToref  = $self->_fetch_knownToRefSeq;
 
-            $index = $kgXref;
 
-            # Indexing kg
-
-            foreach my $kg ( keys %{ $kgEns->{kg} } ) {
-                $index->{'kg'}->{$kg}->{'ensembl'} = $kgEns->{kg}->{$kg};
-                # All kg should have an alias form kgAlias
-                $index->{'kg'}->{$kg}->{'symbol'} = $kgSymbol->{kg}->{$kg} unless $index->{'kg'}->{$kg}->{'symbol'};
-                $index->{'symbol'}->{$kgSymbol->{kg}->{$kg}}->{kg} = $kg if $kgSymbol->{kg}->{$kg}; 
-            }
+            
+            # I had some problems building the index
+            # structure withou initialize a empty hash structure
+            $index = { 
+                kg => {},
+                ensembl => {},
+                refseq => {},
+            };
+            
+            my $refseqI = $index->{'refseq'};
+            my $kgI = $index->{kg};
 
             # Indexing refseq
+            #====================================================================
+            #kgXref just have the alias to UCSC genes
+            #The relation between ucsc genes and refseq is in knownToRefSeq
             foreach my $refseq ( keys %{ $kgXref->{refseq} } ) {
+                
+                # get Kg
                 my $this_kg     = $kgXref->{refseq}->{$refseq}->{kg};
-                my $this_ensmbl = $index->{kg}->{$this_kg}->{ensembl};
-                $index->{refseq}->{$refseq}->{'ensembl'} = $this_ensmbl;
-                $index->{symbol}->{$kgSymbol->{kg}->{$this_kg}}->{refseq} = $refseq if $kgSymbol->{kg}->{$this_kg};
-                $index->{'symbol'}->{$kgSymbol->{kg}->{$this_kg}}->{kg} = $this_kg if $kgSymbol->{kg}->{$this_kg}; 
+                my $this_ensmbl = $kgEns->{kg}->{$this_kg};
+                
+                # let's type less
+
+                $refseqI->{$refseq}->{ensembl} = $this_ensmbl if $this_ensmbl;
+                $refseqI->{$refseq}->{kg} = $this_kg;
+                $refseqI->{$refseq}->{refseq} = $refseq;
+                $refseqI->{$refseq}->{symbol} = $kgSymbol->{'kg'}->{$this_kg} if $kgSymbol->{kg}->{$this_kg}; 
+            
+#                $index->{symbol}->{$kgSymbol->{kg}->{$this_kg}}->{refseq} = $refseq if $kgSymbol->{kg}->{$this_kg};
+#                $index->{'symbol'}->{$kgSymbol->{kg}->{$this_kg}}->{kg} = $this_kg if $kgSymbol->{kg}->{$this_kg}; 
+            }
+            
+            # Indexing refseq and knowGene
+            foreach my $refseq (keys %{$kgToref->{refseq}}){
+
+                my $this_kg     = $kgToref->{refseq}->{$refseq};
+                $refseqI->{$refseq}->{kg} = $this_kg unless $refseqI->{$refseq}->{kg};
+                $kgI->{$this_kg}->{refseq} = $refseq;
+           
+            }
+
+
+            # Indexing kg
+            foreach my $kg ( keys %{ $kgEns->{'kg'} } ) {
+
+                # Getting ensemblsd
+                $kgI->{$kg}->{ensembl} = $kgEns->{kg}->{$kg};
+                # All kg should have an alias form kgAlias
+                $kgI->{$kg}->{symbol} = $kgSymbol->{kg}->{$kg};
+                $kgI->{$kg}->{kg} = $kg;
+=cut                
+                print Dumper($index);
+                say $kg;
+                say $kgI->{$kg}->{kg};
+                say $index->{kg}->{$kg}->{kg};
+                exit;
+=cut
+
+#                $index->{'symbol'}->{$kgSymbol->{kg}->{$kg}}->{kg} = $kg if $kgSymbol->{kg}->{$kg};
+               
+            }
+
+            foreach my $kg ( keys %{ $kgXref->{kg} } ) {
+                
+                # get Kg
+                my $this_refseq     = $kgXref->{kg}->{$kg}->{refseq};
+                
+                # let's type less
+
+#                $refseqI->{$refseq}->{kg} = $this_kg;
+#                $kgI->{$kg}->{refseq} = $this_refseq;
+                $kgI->{$kg}->{symbol} = $kgSymbol->{'kg'}->{$kg}; 
+                $kgI->{$kg}->{kg} = $kg; 
+            
+#                $index->{symbol}->{$kgSymbol->{kg}->{$this_kg}}->{refseq} = $refseq if $kgSymbol->{kg}->{$this_kg};
+#                $index->{'symbol'}->{$kgSymbol->{kg}->{$this_kg}}->{kg} = $this_kg if $kgSymbol->{kg}->{$this_kg}; 
+            }
+
+            # Indexing refseq with reflat
+            foreach my $refseq (keys %{$refSymbol->{refseq}}){
+
+                #$refseqI->{symbol} = $refSymbol->{refseq}->{$refseq};
+                $refseqI->{$refseq}->{symbol} = $refSymbol->{refseq}->{$refseq};
+                #refseqI->{symbol} = "merda";
             }
 
             #Indexing ensembl
@@ -264,12 +337,14 @@ package UCSC::Role;
                   if $symbol;
                 $index->{'ensembl'}->{$ensembl}->{'refseq'} = $refseq
                   if $refseq;
-                $index->{symbol}->{$kgSymbol->{kg}->{$this_kg}}->{ensembl} = $ensembl if $kgSymbol->{kg}->{$this_kg};
+#               $index->{symbol}->{$kgSymbol->{kg}->{$this_kg}}->{ensembl} = $ensembl if $kgSymbol->{kg}->{$this_kg};
             }
-            
+
 
             $cache->set( $key_index, $index );
+            
         }
+
         return $index;
     }
 
@@ -285,7 +360,7 @@ package UCSC::Role;
 
 
         my $file = $self->fetch_ucsc_table( 'kgXref', 'selectedFields',\%selectedFields );
-
+        
         open( my $in, '<', \$file );
 
         while ( my $row = <$in> ) {            
@@ -318,9 +393,9 @@ package UCSC::Role;
             next if $row =~ /^#/;
             chomp $row;
             my ( $kg, $ensembl ) = split("\t", $row); 
-            $aux{'kg'}->{$kg} = $ensembl;
+            $aux{'kg'}{$kg} = $ensembl;
             
-            $aux{'ensembl'}->{$ensembl} = $kg;
+            $aux{'ensembl'}{$ensembl} = $kg;
         }
 
         close($in);
@@ -356,6 +431,67 @@ package UCSC::Role;
         return \%aux;
 
     }
+
+
+=head2 _fetch_refFlat
+
+ Title   : _fetch_refFlat
+ Usage   : _fetch_refFlat()
+ Function: 
+ Returns : 
+ Args    : 
+
+=cut 
+
+sub _fetch_refFlat {
+    my($self) = @_;
+        my $file = $self->fetch_ucsc_table( 'refFlat', 'primaryTable' );
+
+        open( my $in, '<', \$file );
+        my %aux;
+        while ( my $row = <$in> ) {
+            next if $row =~ /^#/;
+            chomp $row;
+            my ($symbol,$refseq) = split( /\t/, $row );
+            $aux{'refseq'}->{$refseq} = $symbol unless $symbol eq $refseq;
+        }
+
+        close($in);
+        return \%aux;
+
+}
+
+
+=head2 _fetch_knownToRefSeq
+
+ Title   : _fetch_knownToRefSeq
+ Usage   : _fetch_knownToRefSeq()
+ Function: 
+ Returns : 
+ Args    : 
+
+=cut 
+
+sub _fetch_knownToRefSeq {
+    my($self) = @_;
+        my $file = $self->fetch_ucsc_table( 'knownToRefSeq', 'primaryTable' );
+        
+        open( my $in, '<', \$file );
+        my %aux;
+        while ( my $row = <$in> ) {
+            next if $row =~ /^#/;
+            chomp $row;
+            my ($kg,$refseq) = split( /\t/, $row );
+            $aux{'kg'}->{$kg} = $refseq;
+            $aux{'refseq'}->{$refseq} = $kg;
+        }
+
+        close($in);
+        return \%aux;
+
+}
+
+
 
     
 =head2 fetch_ucsc_table
@@ -481,10 +617,12 @@ package UCSC::Role;
                 if ($index) {
                     my $type = $types{$table_name};
 
-                    my $symbol  = $index->{$type}->{ $f[3] }->{symbol};
-                    my $refseq  = $index->{$type}->{ $f[3] }->{refseq};
-                    my $kg      = $index->{$type}->{ $f[3] }->{kg};
-                    my $ensembl = $index->{$type}->{ $f[3] }->{ensembl};
+                    $f[3] =~ s/\s+//g;
+
+                    my $symbol  = $index->{$type}->{$f[3]}->{symbol};
+                    my $refseq  = $index->{$type}->{$f[3]}->{refseq};
+                    my $kg      = $index->{$type}->{$f[3]}->{kg};
+                    my $ensembl = $index->{$type}->{$f[3]}->{ensembl};
                     
                     if ($table_name =~ /knownGene/){
                         $aux{kg} = $f[3];
@@ -588,6 +726,7 @@ sub get_refseq_bed_with_symbol {
         }
         push(@f,$feat->strand);
         
+        push(@f,$feat->refseq) if $feat->refseq;
         push(@f,$feat->kg) if $feat->kg;
         push(@f,$feat->ensembl) if $feat->ensembl;
 
