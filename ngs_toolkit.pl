@@ -551,7 +551,7 @@ sub _fetch_knownToRefSeq {
                 form_number => 1,                
                 button      => 'hgta_doPrintSelectedFields',
                 fields =>  $selected_fields,
-               
+                
             );
 
         }
@@ -1425,7 +1425,7 @@ package MyApp::Feature::Bed;
     # BED Fields
     has 'chrom'       => ( is => 'ro', isa => 'Str', required => 1 );
     has 'chromStart'  => ( is => 'ro', isa => 'Int', required => 1 );
-    has 'chromEnd'      => ( is => 'ro', isa => 'Int', required => 1 );
+    has 'chromEnd'    => ( is => 'ro', isa => 'Int', required => 1 );
     has 'name'        => ( is => 'ro', isa => 'Str' );
     has 'score'       => ( is => 'ro', isa => 'Int' );
     has 'strand'      => ( is => 'ro', isa => 'Str' );
@@ -2929,6 +2929,7 @@ sub get_tss_given_a_list {
 }
 1;
 
+
 package Venn::BED::Two;
 {
     use Moose;
@@ -3088,7 +3089,6 @@ package Venn::BED::Two;
     }
 
 }
-1;
 1;
 
 
@@ -3762,7 +3762,6 @@ package MyApp::Command::breaking_spreading;
 }
 1;
 
-
 package MyApp::Command::binBed;
 {
     use Moose;
@@ -4333,7 +4332,6 @@ tbin=/Volumes/data/wolfgang_analyis/forThiago
 }
 1;
 
-
 package MyApp::Command::Hotspot_Finder;
 {
     use Moose;
@@ -4633,6 +4631,111 @@ package MyApp::Command::Get_Refseq;
         my ($self, $opt, $args ) = @_;
         
         print $self->get_refseq_bed_with_symbol;
+    }
+
+
+}
+1;
+
+package MyApp::Command::bed2excel; 
+{
+    use Moose;
+    use 5.10.0;
+    use Excel::Writer::XLSX;
+
+    extends qw/MooseX::App::Cmd::Command/;
+
+
+    has 'input_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'i',
+        required      => 1,
+        documentation => 'Bed file with at least 3 columns',
+    );
+    
+    has 'output_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'o',
+        required      => 1,
+        documentation => 'Output file name of the excel file (xlsx)',
+    );
+
+    has 'gb_url' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        required      => 1,
+        documentation => 'URL for genome_browser (e.g. http://genome.ucsc.edu/cgi-bin/hgTracks?hgsid=196563981)',
+    );
+    
+    
+    
+    # Description of this command in first help
+    sub abstract { 'Transform a BED file in an Excel workbook.'; }
+
+
+    # method used to run the command
+    sub execute {
+        my ($self, $opt, $args ) = @_;
+
+        open( my $in, '<', $self->input_file );
+
+        # Keep the maximum number of columns
+        my $max_col = 0;
+
+        # Keep the file estructure in a Arraf of Array
+        my @bed_rows;
+
+        while ( my $row = <$in> ){
+            chomp $row;
+            my @f = split "\t", $row;
+            my $n_col = $#f + 1;
+            $max_col = $n_col if $n_col > $max_col;
+            push (@bed_rows,\@f);
+        }
+        close($in);
+
+        say "Building Spreadsheet...";
+        # Create a new Excel Workbook
+        my $workbook = Excel::Writer::XLSX->new($self->output_file);
+
+        # Add a worksheet
+        my $worksheet = $workbook->add_worksheet();
+
+        #  Add and define a format
+        my $link_format = $workbook->add_format( color => 'blue', underline => 1);
+
+
+        my $i = 0; # row
+        my $j = 0; # column
+        foreach my $ary_ref (@bed_rows) {
+            
+            $j = 0;
+            foreach my $f (@{$ary_ref}) {
+                # Write all columns
+                $worksheet->write( $i, $j, $f );
+                $j++;
+            }
+            # Adding link
+            my $chr   = $ary_ref->[0];
+            my $start = $ary_ref->[1];
+            my $end   = $ary_ref->[2];
+            $worksheet->write_url(
+                $i,
+                ( $max_col ),
+                $self->gb_url."&position=$chr:$start-$end",
+                $link_format,
+                'See region',
+            );
+            
+            $i++;
+        }
+
+        $workbook->close();
     }
 
 
