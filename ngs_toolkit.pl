@@ -1413,7 +1413,14 @@ package MyApp::Feature::Bed;
     with 'UCSC::Role';
     my $cache_file = '/tmp/BEDcache';
 
-    my  $cache = Cache::FastMmap->new( expire_time => '5d', share_file => $cache_file, unlink_on_exit => 0, page_size => '20000k', compress => 1, cache_size => '100m');
+    my $cache = Cache::FastMmap->new(
+        expire_time    => '5d',
+        share_file     => $cache_file,
+        unlink_on_exit => 0,
+        page_size      => '20000k',
+        compress       => 1,
+        cache_size     => '100m'
+    );
 
     my %Xref_tables = (
         knownGene => 'kg',
@@ -1474,8 +1481,6 @@ package MyApp::Feature::Bed;
         }
 
     } 
-    
-
 
 
 }
@@ -4736,6 +4741,419 @@ package MyApp::Command::bed2excel;
         }
 
         $workbook->close();
+    }
+
+
+}
+1;
+
+package MyApp::Command::Get_RNASeq_stalling; 
+{
+    use Moose;
+    use 5.10.0;
+    use Excel::Writer::XLSX;
+    use Data::Dumper;
+    with 'UCSC::Role';
+    require File::Temp;
+    use File::Temp ();
+    use File::Temp qw/ :seekable /;
+    use List::Util qw(first max maxstr min minstr reduce shuffle sum);
+
+    extends qw/MooseX::App::Cmd::Command/;
+
+
+    has 'input_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'i',
+        required      => 1,
+        documentation => 'BAM file with the alignments',
+    );
+     has 'range' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        required      => 0,
+        default => 2000,
+        documentation => 'Range of TSS. (defaul 2000)',
+    );
+   
+    has 'output_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'o',
+        required      => 1,
+        documentation => 'Output file name of the excel file (xlsx)',
+    );
+
+    has 'gb_url' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        required      => 1,
+        documentation => 'URL for genome_browser, to generate links (e.g. http://genome.ucsc.edu/cgi-bin/hgTracks?hgsid=196563981)',
+    );
+    
+    
+    
+    # Description of this command in first help
+    sub abstract { 'Search for stalling in the Anna RNAseq experiment (is not a normal RNAseq experiment).'; }
+
+
+    # Getting all Refseq info
+
+    sub _get_tss_body_and_exons {
+        my ( $self, $table_name, $range ) = @_;
+
+        $range = 2000 unless $range;
+
+        my $bed = $self->get_ucsc_features($table_name);
+
+        # Will be an array of hash (with BED objc plus informations);
+        my @out;
+        my $tss_file;
+        my $exons_file;
+        my $gene_body_file;
+        foreach my $feat ( @{$bed} ) {
+
+            my %aux;
+
+            $aux{'bed_obj'} = $feat;
+
+            # Getting the TSS given a range
+            my $tss;
+            if ( $feat->strand =~ /\+/ ) {
+                $tss = $feat->chromStart;
+            }
+            else {
+                $tss = $feat->chromEnd;
+            }
+
+            my $less_range;
+
+            if ( $tss - $range < 0 ) {
+                $less_range = 0;
+            }
+            else {
+                $less_range = $tss - $range;
+            }
+
+            # Get TSS info
+            my $tss_line =
+                $feat->chrom . "\t"
+              . ($less_range) . "\t"
+              . ( $tss + $range ) . "\t"
+              . $feat->name . "\t"
+              . $feat->strand . "\t";
+
+            $aux{'tss_line'} = $tss_line;
+            $tss_file .= $tss_line . "\n";
+
+            #Get the "body of the gene"
+            my $gene_body;
+
+#            if ( $feat->strand =~ /\+/ ) {
+                #$gene_body =
+                    #$feat->chrom . "\t"
+                  #. ( $tss + $range ) . "\t"
+                  #. $feat->chromEnd . "\t"
+                  #. $feat->name . "\t"
+                  #. $feat->strand;
+            #}
+            #else {
+                #$gene_body =
+                    #$feat->chrom . "\t"
+                  #. $feat->chromStart . "\t"
+                  #. ($less_range) . "\t"
+                  #. $feat->name . "\t"
+                  #. $feat->strand;
+            #}
+            $gene_body =
+                    $feat->chrom . "\t"
+                  . $feat->chromStart . "\t"
+                  . $feat->chromEnd . "\t"
+                  . $feat->name . "\t"
+                  . $feat->strand;
+ 
+            $aux{'gene_body'} = $gene_body;
+            $gene_body_file .= $gene_body . "\n";
+
+    # create exon ranges "BED syle" (without taking in account the range of TSS)
+    #-------------------------------------------------
+            my $str_blockstart = $feat->blockStarts;
+
+            # Removing last comma
+            $str_blockstart =~ s/\,$//g;
+            my $str_blocksize = $feat->blockSizes;
+            $str_blocksize =~ s/\,$//g;
+
+            my @blockStarts = split ",", $str_blockstart;
+            my @blockSizes  = split ",", $str_blocksize;
+
+            my @exons_tmp;
+
+            my $i = 0;
+            foreach my $blockstart (@blockStarts) {
+                my $exonstart = $feat->chromStart + $blockstart;
+                my $exonend   = $exonstart + $blockSizes[$i];
+                my $exon_line =
+                    $feat->chrom . "\t"
+                  . $exonstart . "\t"
+                  . $exonend . "\t"
+                  . $feat->name . "\t"
+                  . $feat->strand;
+
+                # Exon file
+                $exons_file .= $exon_line . "\n";
+
+                push( @exons_tmp, $exon_line );
+                $i++;
+            }
+
+            $aux{'exons'} = \@exons_tmp;
+
+            push( @out, \%aux );
+
+        }
+        
+        return {
+            genes_info     => \@out,
+            tss_file       => $tss_file,
+            gene_body_file => $gene_body_file,
+            exons_file     => $exons_file
+        };
+
+    }
+
+    
+=head2 _parse_coverage
+
+ Title   : _parse_coverage
+ Usage   : _parse_coverage()
+ Function: 
+ Returns : 
+ Args    : sorted coverage file 
+
+=cut 
+
+    sub _parse_coverage {
+        my ($self, $file) = @_;
+
+        open( my $in, '<', $file );
+        my %hash;
+        my $i;
+        while ( my $row = <$in> ){
+            chomp $row;
+            my @f = split "\t", $row;
+            my ($chr,$start,$end,$name,$strand,$n_reads,$n_bases,$length,$fraq_bases) = ($f[0],$f[1],$f[2],$f[3],$f[4],$f[$#f-3],$f[$#f-2],$f[$#f-1],$f[$#f]);
+            my %aux = (
+                chr        => $chr,
+                start      => $start,
+                end        => $end,
+                strand     => $strand,
+                n_reads    => $n_reads,
+                n_bases    => $n_bases,
+                length     => $length,
+                fraq_bases => $fraq_bases,
+            );
+
+            push(@{$hash{$name}},\%aux);
+            
+        }
+        close( $in );
+        
+        return \%hash;
+    }
+
+    sub get_coverage{
+        my ( $self, $table_name, $range ) = @_;
+        my $gene_info = $self->_get_tss_body_and_exons($table_name, $range);
+
+        # Get the coverage for each TSS
+        say "Coverage for TSS";
+
+        my $tmp_tss_bed = File::Temp->new( SUFFIX => '.bed' );
+        print $tmp_tss_bed $gene_info->{tss_file};
+        my $cmd = 'coverageBed -abam '.$self->input_file.'  -b '.$tmp_tss_bed->filename;
+        my $tss_coverage_file = qx/$cmd/;
+
+        say "Parsing Coverage for TSS";
+        my $tss_coverage_info = $self->_parse_coverage(\$tss_coverage_file);
+
+
+        say "Coverage for Gene Body";
+        my $tmp_body_bed = File::Temp->new( SUFFIX => '.bed' );
+        print $tmp_body_bed $gene_info->{gene_body_file};
+        $cmd = 'coverageBed -abam '.$self->input_file.'  -b '.$tmp_body_bed->filename;
+        my $body_coverage_file = qx/$cmd/;
+
+        say "Parsing Coverage for Gene Body";
+        my $body_coverage_info = $self->_parse_coverage(\$body_coverage_file);
+
+        say "Coverage for Exons";
+        my $tmp_exons_bed = File::Temp->new( SUFFIX => '.bed' );
+        print $tmp_exons_bed $gene_info->{exons_file};
+        $cmd = 'coverageBed -abam '.$self->input_file.'  -b '.$tmp_exons_bed->filename;
+        my $exons_coverage_file = qx/$cmd/;
+
+        say "Parsing Coverage for Exons";
+        my $exons_coverage_info = $self->_parse_coverage(\$exons_coverage_file);
+
+        my %index = (
+            tss => $tss_coverage_info,            
+            gene_body  => $body_coverage_info,            
+            exons => $exons_coverage_info,            
+        );
+
+        
+        say "Building Spreadsheet...";
+        # Create a new Excel Workbook
+        my $workbook = Excel::Writer::XLSX->new($self->output_file);
+
+        # Add a worksheet
+        my $worksheet = $workbook->add_worksheet();
+
+        #  Add and define a format
+        my $link_format = $workbook->add_format( color => 'blue', underline => 1);
+
+
+        my @header =(
+            'chr',
+            'start',
+            'end',
+            'refseq',
+            'gene strand',
+            'Reads at TSS + '.$range.'pb',
+            'TSS size',
+            'Reads at Gene body',
+            'Gene body size',
+            'Ratio TSS/Gene_body normalized by kb',
+            'Reads at Gene exons',
+            'Exons size',
+            'Ratio TSS/Exons_size normalized by kb',
+            'Gene Symbol',
+            'Link',
+        );
+
+        my $hcol=0;
+        foreach my $f (@header){
+                $worksheet->write( 0, $hcol, $f );
+                $hcol++;
+        }
+
+        my $i = 1; # row
+        foreach my $info ( @{ $gene_info->{genes_info} } ) {
+            my $feat = $info->{bed_obj};
+            my $id = $feat->name;
+            my $j = 0; # column
+
+            my @aux = split "\t",$info->{tss_line};
+
+            for ($j = 0; $j <= $#aux; $j++){
+                $worksheet->write( $i, $j, $aux[$j] );
+            }
+
+            my %reads;
+            foreach my $k ('tss','gene_body','exons'){ 
+                my @coverage_reads = map( $_->{n_reads}, @{ $index{$k}->{$id} } );
+                my @coverage_size = map( $_->{length}, @{ $index{$k}->{$id} } );
+                $reads{$k} = sum(@coverage_reads);
+                my $size = sum(@coverage_size);
+                $worksheet->write( $i, $j++, $reads{$k} );
+                $worksheet->write( $i, $j++, $size );
+                if ( $k ne 'tss' ) {
+                    
+                    my $stalling_index;
+
+                    if ($reads{$k} > 0 ){
+                        # normalize by kb
+                        $stalling_index =  ($reads{tss}/$range) / ( $reads{$k} / $size );
+                    }
+                    else{
+                        $stalling_index = $reads{tss}/$range;
+                    }
+
+                    $worksheet->write( $i, $j++, $stalling_index );
+                }
+
+            }
+            my $symbol = $id;
+            if ($feat->symbol){
+                $symbol = $feat->symbol;
+            }
+            $worksheet->write( $i, $j++, $symbol );
+            $worksheet->write_url( $i, $j++,
+                $self->gb_url . "&position=$aux[0]:$aux[1]-$aux[2]",
+                $link_format, 'See region', );
+
+            $i++;    
+        }
+
+
+    }
+
+    # method used to run the command
+    sub execute {
+        my ($self, $opt, $args ) = @_;
+
+        $self->get_coverage('refGene',$self->range);
+
+#        open( my $in, '<', $self->input_file );
+
+        ## Keep the maximum number of columns
+        #my $max_col = 0;
+
+        ## Keep the file estructure in a Arraf of Array
+        #my @bed_rows;
+
+        #while ( my $row = <$in> ){
+            #chomp $row;
+            #my @f = split "\t", $row;
+            #my $n_col = $#f + 1;
+            #$max_col = $n_col if $n_col > $max_col;
+            #push (@bed_rows,\@f);
+        #}
+        #close($in);
+
+        #say "Building Spreadsheet...";
+        ## Create a new Excel Workbook
+        #my $workbook = Excel::Writer::XLSX->new($self->output_file);
+
+        ## Add a worksheet
+        #my $worksheet = $workbook->add_worksheet();
+
+        ##  Add and define a format
+        #my $link_format = $workbook->add_format( color => 'blue', underline => 1);
+
+
+        #my $i = 0; # row
+        #my $j = 0; # column
+        #foreach my $ary_ref (@bed_rows) {
+            
+            #$j = 0;
+            #foreach my $f (@{$ary_ref}) {
+                ## Write all columns
+                #$worksheet->write( $i, $j, $f );
+                #$j++;
+            #}
+            ## Adding link
+            #my $chr   = $ary_ref->[0];
+            #my $start = $ary_ref->[1];
+            #my $end   = $ary_ref->[2];
+            #$worksheet->write_url(
+                #$i,
+                #( $max_col ),
+                #$self->gb_url."&position=$chr:$start-$end",
+                #$link_format,
+                #'See region',
+            #);
+            
+            #$i++;
+        #}
+
+        #$workbook->close();
     }
 
 
