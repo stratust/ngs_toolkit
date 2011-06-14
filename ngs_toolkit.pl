@@ -726,9 +726,27 @@ sub get_refseq_bed_with_symbol {
         }
         push(@f,$feat->strand);
         
-        push(@f,$feat->refseq) if $feat->refseq;
-        push(@f,$feat->kg) if $feat->kg;
-        push(@f,$feat->ensembl) if $feat->ensembl;
+        if ( $feat->refseq ) {
+            push( @f, $feat->refseq )
+
+        }
+        else {
+            push( @f, " " );
+        }
+        if ( $feat->kg ) {
+            push( @f, $feat->kg );
+
+        }
+        else {
+            push( @f, " " );
+        }
+        if ( $feat->ensembl ) {
+            push( @f, $feat->ensembl );
+
+        }
+        else {
+            push( @f, " " );
+        }
 
         $string .= join("\t",@f)."\n";
     }
@@ -3186,6 +3204,92 @@ package Remove::From::List;
 }
 1;
 
+package Bed2Excel;
+{
+    use Moose;
+    use 5.10.0;
+    use Carp;
+
+    has 'output_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'o',
+        required      => 1,
+        documentation => 'Output file name of the excel file (xlsx)',
+    );
+
+    has 'gb_url' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        required      => 1,
+        documentation => 'URL for genome_browser (e.g. http://genome.ucsc.edu/cgi-bin/hgTracks?hgsid=196563981)',
+    );
+    
+     sub bed2excel {
+        my ($self,$bed_file) = @_;
+       
+        croak "No BED file!" unless $bed_file;
+
+        open( my $in, '<', $bed_file );
+
+        # Keep the maximum number of columns
+        my $max_col = 0;
+
+        # Keep the file estructure in a Arraf of Array
+        my @bed_rows;
+
+        while ( my $row = <$in> ) {
+            chomp $row;
+            my @f = split "\t", $row;
+            my $n_col = $#f + 1;
+            $max_col = $n_col if $n_col > $max_col;
+            push( @bed_rows, \@f );
+        }
+        close($in);
+
+        say "Building Spreadsheet...";
+
+        # Create a new Excel Workbook
+        my $workbook = Excel::Writer::XLSX->new( $self->output_file );
+
+        # Add a worksheet
+        my $worksheet = $workbook->add_worksheet();
+
+        #  Add and define a format
+        my $link_format =
+          $workbook->add_format( color => 'blue', underline => 1 );
+
+        my $i = 0;    # row
+        my $j = 0;    # column
+        foreach my $ary_ref (@bed_rows) {
+
+            $j = 0;
+            foreach my $f ( @{$ary_ref} ) {
+
+                # Write all columns
+                $worksheet->write( $i, $j, $f );
+                $j++;
+            }
+
+            # Adding link
+            my $chr   = $ary_ref->[0];
+            my $start = $ary_ref->[1];
+            my $end   = $ary_ref->[2];
+            $worksheet->write_url( $i, ($max_col),
+                $self->gb_url . "&position=$chr:$start-$end",
+                $link_format, 'See region', );
+
+            $i++;
+        }
+
+        $workbook->close();
+    }
+
+}
+1;
+
 #-------------------------------------------------------------------------------------------------------
 # Command Classes 
 # All Command should be create as classes and listed below
@@ -4647,8 +4751,8 @@ package MyApp::Command::bed2excel;
     use Moose;
     use 5.10.0;
     use Excel::Writer::XLSX;
-
-    extends qw/MooseX::App::Cmd::Command/;
+    
+    extends qw/MooseX::App::Cmd::Command Bed2Excel/;
 
 
     has 'input_file' => (
@@ -4660,24 +4764,7 @@ package MyApp::Command::bed2excel;
         documentation => 'Bed file with at least 3 columns',
     );
     
-    has 'output_file' => (
-        is            => 'rw',
-        isa           => 'Str',
-        traits        => ['Getopt'],
-        cmd_aliases     => 'o',
-        required      => 1,
-        documentation => 'Output file name of the excel file (xlsx)',
-    );
-
-    has 'gb_url' => (
-        is            => 'rw',
-        isa           => 'Str',
-        traits        => ['Getopt'],
-        required      => 1,
-        documentation => 'URL for genome_browser (e.g. http://genome.ucsc.edu/cgi-bin/hgTracks?hgsid=196563981)',
-    );
-    
-    
+   
     
     # Description of this command in first help
     sub abstract { 'Transform a BED file in an Excel workbook.'; }
@@ -4686,63 +4773,10 @@ package MyApp::Command::bed2excel;
     # method used to run the command
     sub execute {
         my ($self, $opt, $args ) = @_;
+        
+        $self->bed2excel($self->input_file);
 
-        open( my $in, '<', $self->input_file );
-
-        # Keep the maximum number of columns
-        my $max_col = 0;
-
-        # Keep the file estructure in a Arraf of Array
-        my @bed_rows;
-
-        while ( my $row = <$in> ){
-            chomp $row;
-            my @f = split "\t", $row;
-            my $n_col = $#f + 1;
-            $max_col = $n_col if $n_col > $max_col;
-            push (@bed_rows,\@f);
-        }
-        close($in);
-
-        say "Building Spreadsheet...";
-        # Create a new Excel Workbook
-        my $workbook = Excel::Writer::XLSX->new($self->output_file);
-
-        # Add a worksheet
-        my $worksheet = $workbook->add_worksheet();
-
-        #  Add and define a format
-        my $link_format = $workbook->add_format( color => 'blue', underline => 1);
-
-
-        my $i = 0; # row
-        my $j = 0; # column
-        foreach my $ary_ref (@bed_rows) {
-            
-            $j = 0;
-            foreach my $f (@{$ary_ref}) {
-                # Write all columns
-                $worksheet->write( $i, $j, $f );
-                $j++;
-            }
-            # Adding link
-            my $chr   = $ary_ref->[0];
-            my $start = $ary_ref->[1];
-            my $end   = $ary_ref->[2];
-            $worksheet->write_url(
-                $i,
-                ( $max_col ),
-                $self->gb_url."&position=$chr:$start-$end",
-                $link_format,
-                'See region',
-            );
-            
-            $i++;
-        }
-
-        $workbook->close();
     }
-
 
 }
 1;
@@ -5159,6 +5193,89 @@ package MyApp::Command::Get_RNASeq_stalling;
 
 }
 1;
+
+package MyApp::Command::Hotspot_to_excel; 
+{
+    use Moose;
+    use 5.10.0;
+
+    extends qw/MooseX::App::Cmd::Command Bed2Excel/;
+    with 'UCSC::Role';
+
+    has 'input_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'i',
+        required      => 1,
+        documentation => 'Translocation file in BED format (as Wolfgang does)',
+    );
+    
+    
+
+    # Description of this command in first help
+    sub abstract { 'Given a bed file.'; }
+
+
+    # method used to run the command
+    sub execute {
+        my ($self, $opt, $args ) = @_;
+
+        # Create temporary bed file for windows
+        my $fh = File::Temp->new();
+
+        my $refseq = $self->get_refseq_bed_with_symbol;
+
+        print $fh $refseq;
+
+        my $refseq_file = $fh->filename;
+
+        open( my $in, '<', $self->input_file );
+        
+        my @cols;
+        while ( my $row = <$in> ){
+            chomp $row;
+            next if $row =~ /^$/;
+            next if $row =~ /^track/;
+            @cols = split "\t", $row;
+            last;
+        }
+        close( $in );
+        
+        
+        my @cut;
+
+        my $i=1;
+        foreach my $col (@cols){
+            push(@cut,$i);
+            $i++;
+        }
+        
+        #refseq file fields
+        push @cut,($i + 3);
+#        push @cut,($i + 6);
+#        push @cut,($i + 7);
+#        push @cut,($i + 8);
+
+        my $cut_text = join(",", @cut);
+
+        #
+        my $cmd = "intersectBed -a ".$self->input_file." -b $refseq_file -wa -wb | cut -f".$cut_text." | sort -k1,1 -k2n,2 -k3n,3 | uniq";
+        say $cmd;
+        #4,6,7,8
+        my $bed_file = qx/$cmd/;
+
+
+        $cmd = "intersectBed -a ".$self->input_file." -b $refseq_file -v -wa -wb| cut -f$cut_text | sort -k1,1 -k2n,2 -k3n,3 | uniq";
+        $bed_file .= qx/$cmd/;
+
+        $self->bed2excel(\$bed_file);
+    }
+
+
+}
+1;
+
 
 
 #-------------------------------------------------------------------------------------------------------
