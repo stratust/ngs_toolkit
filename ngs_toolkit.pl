@@ -2952,7 +2952,6 @@ sub get_tss_given_a_list {
 }
 1;
 
-
 package Venn::BED::Two;
 {
     use Moose;
@@ -3113,7 +3112,6 @@ package Venn::BED::Two;
 
 }
 1;
-
 
 package Remove::From::List;
 {
@@ -3289,6 +3287,86 @@ package Bed2Excel;
 
 }
 1;
+
+package Chrom::Coverage;
+{
+    use Moose;
+    use 5.10.0;
+    use Carp;
+    with 'UCSC::Role';
+    use Data::Dumper;
+
+    sub get_coverage_per_chrom {
+        my ($self,$bed_file) = @_;
+
+        my $chrom = $self->get_chrominfo();
+
+        my @keys =  keys %{$chrom};
+        
+        my @numbers;
+        foreach my $r (@keys){
+             if   ( $r =~ /chr(\d+)$/ ) { 
+                 push(@numbers,$1);
+             }
+           
+        }
+
+        say"chrom\tratio";
+        foreach my $n (sort {$a <=> $b} @numbers){
+            my $chr_name = 'chr'.$n;
+            my $chr_size = $chrom->{$chr_name}->{size};
+            my $interval = "$chr_name\t0\t".$chr_size;
+            my $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
+            my $reads = qx/$cmd/;
+            my $ratio = $reads/($chr_size/1000000);
+            say $chr_name."\t".$ratio;
+
+            if ( $n == 15 ) {
+
+                # Primer extreme coodinates
+                my $cmyc_10k =
+                    "chr15\t"
+                  . ( 61818182 - 10000 ) . "\t"
+                  . ( 61818392 + 10000 );
+                my $cmyc_1Mb =
+                    "chr15\t"
+                  . ( 61818182 - 1000000 ) . "\t"
+                  . ( 61818392 + 1000000 );
+                my $cmd =
+                    "echo '" 
+                  . $cmyc_10k
+                  . "' | intersectBed -a stdin -b ".$bed_file." | wc -l";
+                my $remove_10k = qx/$cmd/;
+                $cmd =
+                    "echo '" 
+                  . $cmyc_1Mb
+                  . "' | intersectBed -a stdin -b ".$bed_file." | wc -l";
+                my $remove_1Mb = qx/$cmd/;
+                my $ratio = ( $reads - $remove_10k ) / ( $chr_size / 1000000 );
+                say $chr_name. "_10Kb\t" . $ratio;
+                $ratio = ( $reads - $remove_1Mb ) / ( $chr_size / 1000000 );
+                say $chr_name. "_1Mb\t" . $ratio;
+            }
+
+        }
+        
+        my @sex = ('X','Y');
+         foreach my $n (@sex){
+            my $chr_name = 'chr'.$n;
+            my $chr_size = $chrom->{$chr_name}->{size};
+            my $interval = "$chr_name\t0\t".$chr_size;
+            my $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
+            my $reads = qx/$cmd/;
+            my $ratio = $reads/($chr_size/1000000);
+            say $chr_name."\t".$ratio;
+
+        }
+       
+    }
+
+}
+1;
+
 
 #-------------------------------------------------------------------------------------------------------
 # Command Classes 
@@ -5276,6 +5354,37 @@ package MyApp::Command::Hotspot_to_excel;
 }
 1;
 
+package MyApp::Command::Chrom_Coverage; 
+{
+    use Moose;
+    use 5.10.0;
+
+    extends qw/MooseX::App::Cmd::Command Chrom::Coverage/;
+
+    has 'input_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'i',
+        required      => 1,
+        documentation => 'Translocation file in BED format',
+    );
+    
+
+    # Description of this command in first help
+    sub abstract { 'Coverage per MB per chromossome given a bed file'; }
+
+
+    # method used to run the command
+    sub execute {
+        my ($self, $opt, $args ) = @_;
+
+           $self->get_coverage_per_chrom($self->input_file);
+    }
+
+
+}
+1;
 
 
 #-------------------------------------------------------------------------------------------------------
