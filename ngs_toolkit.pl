@@ -3365,7 +3365,8 @@ package Chrom::Coverage;
             my $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
             my $reads = qx/$cmd/;
             my $ratio = $reads/($chr_size/1000000);
-            say $chr_name."\t".$ratio;
+            my $freq = ($reads/$total_transloc) * 100;
+            say $chr_name."\t".$ratio."\t".$freq;
 
         }
        
