@@ -3311,7 +3311,10 @@ package Chrom::Coverage;
            
         }
 
-        say"chrom\tratio";
+        say"chrom\tratio\tfreq";
+        my $cmd = "perl -ne 'print $_ unless $_=~ /track/' $bed_file | wc -l";
+        my $total_transloc = qx/$cmd/;
+
         foreach my $n (sort {$a <=> $b} @numbers){
             my $chr_name = 'chr'.$n;
             my $chr_size = $chrom->{$chr_name}->{size};
@@ -3319,7 +3322,8 @@ package Chrom::Coverage;
             my $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
             my $reads = qx/$cmd/;
             my $ratio = $reads/($chr_size/1000000);
-            say $chr_name."\t".$ratio;
+            my $freq = ($reads/$total_transloc) * 100;
+            say $chr_name."\t".$ratio."\t".$freq;
 
             if ( $n == 15 ) {
 
@@ -3343,9 +3347,12 @@ package Chrom::Coverage;
                   . "' | intersectBed -a stdin -b ".$bed_file." | wc -l";
                 my $remove_1Mb = qx/$cmd/;
                 my $ratio = ( $reads - $remove_10k ) / ( $chr_size / 1000000 );
-                say $chr_name. "_10Kb\t" . $ratio;
+
+                my $freq = (($reads - $remove_10k)/($total_transloc - $remove_10k)) * 100;
+                say $chr_name. "_10Kb\t" . $ratio."\t".$freq;
                 $ratio = ( $reads - $remove_1Mb ) / ( $chr_size / 1000000 );
-                say $chr_name. "_1Mb\t" . $ratio;
+                $freq = (($reads - $remove_1Mb)/($total_transloc - $remove_1Mb)) * 100;
+                say $chr_name. "_1Mb\t" . $ratio."\t".$freq;
             }
 
         }
