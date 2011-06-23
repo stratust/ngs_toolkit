@@ -5392,10 +5392,11 @@ package MyApp::Command::Chrom_Coverage;
         is            => 'rw',
         isa           => 'Bool',
         traits        => ['Getopt'],
-        required      => 1,
+        required      => 0,
+        default       => 0,
         documentation => 'Remove chr12 and chr15 from the coverage',
     );
-    
+
     
 
     # Description of this command in first help
