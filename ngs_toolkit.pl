@@ -3300,14 +3300,18 @@ package Chrom::Coverage;
     # by the number of reads in the genome (how much that region contributes
     # for the genome coverage)
     sub get_coverage_per_region{
-        my ($self,$bed_file,$id,$chr,$start,$end,$remove_chr15) = @_;
+        my ($self,$bed_file,$chr,$start,$end,$remove_chr15) = @_;
+
+            # Remove chr15 of the total of reads
+            my $cmd = 'perl -ne \'print $_ unless $_ =~ /track/ || $_ =~ /chr15/ \' '. $bed_file .'| wc -l';
+            my $total_transloc = qx/$cmd/;
 
             my $interval = "$chr\t$start\t$end";
-            my $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
+            $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
             my $reads = qx/$cmd/;
-            #say $id."\t".$ratio."\t".$freq;
-      
-
+            $reads = 0 unless $reads;
+            my $freq = $reads/$total_transloc;
+            say $interval."\t$freq";
     }
 
     sub get_coverage_per_chrom {
@@ -5422,6 +5426,64 @@ package MyApp::Command::Chrom_Coverage;
         my ($self, $opt, $args ) = @_;
 
            $self->get_coverage_per_chrom($self->input_file,$self->remove_12_15);
+    }
+
+
+}
+1;
+
+package MyApp::Command::Bin_Coverage; 
+{
+    use Moose;
+    use 5.10.0;
+
+    extends qw/MooseX::App::Cmd::Command Chrom::Coverage/;
+
+    has 'input_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'i',
+        required      => 1,
+        documentation => 'Translocation file in BED format',
+    );
+
+    has 'bin_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'b',
+        required      => 1,
+        documentation => 'Bin file in BED format',
+    );
+    
+    
+ 
+    
+
+    # Description of this command in first help
+    sub abstract { 'Coverage per bin (normalize by total reads) given a bed file'; }
+
+
+    # method used to run the command
+    sub execute {
+        my ($self, $opt, $args ) = @_;
+
+           open( my $in, '<', $self->bin_file );
+           
+           
+           while ( my $row = <$in> ){
+               chomp $row;
+               my ($chr,$start,$end);
+               ($chr,$start,$end) = ($1,$2,$3) if ($_ =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+               $self->get_coverage_per_region($self->input_file,$chr,$start,$end);
+               
+           }
+           close( $in );
+           
+           
+           
+
     }
 
 
