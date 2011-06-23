@@ -5475,7 +5475,7 @@ package MyApp::Command::Bin_Coverage;
            while ( my $row = <$in> ){
                chomp $row;
                my ($chr,$start,$end);
-               ($chr,$start,$end) = ($1,$2,$3) if ($_ =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+               ($chr,$start,$end) = ($1,$2,$3) if ($row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
                $self->get_coverage_per_region($self->input_file,$chr,$start,$end);
                
            }
