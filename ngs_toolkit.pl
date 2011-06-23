@@ -3318,7 +3318,7 @@ package Chrom::Coverage;
         }
 
         say"chrom\tratio\tfreq";
-        my $cmd = 'perl -ne \'print $_ unless $_ =~ /track/\' '. $bed_file .'| wc -l';
+        my $cmd = 'perl -ne \'print $_ unless $_ =~ /track/ || $_=~ /chr12/ || $_ =~ /chr12/ \' '. $bed_file .'| wc -l';
         my $total_transloc = qx/$cmd/;
 
         foreach my $n (sort {$a <=> $b} @numbers){
