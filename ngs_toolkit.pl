@@ -3296,6 +3296,20 @@ package Chrom::Coverage;
     with 'UCSC::Role';
     use Data::Dumper;
 
+    # Given a region compute the coverage for thar region and correct
+    # by the number of reads in the genome (how much that region contributes
+    # for the genome coverage)
+    sub get_coverage_per_region{
+        my ($self,$bed_file,$id,$chr,$start,$end,$remove_chr15) = @_;
+
+            my $interval = "$chr\t$start\t$end";
+            my $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
+            my $reads = qx/$cmd/;
+            #say $id."\t".$ratio."\t".$freq;
+      
+
+    }
+
     sub get_coverage_per_chrom {
         my ($self,$bed_file, $remove_chr12_and_chr15) = @_;
 
@@ -3318,7 +3332,7 @@ package Chrom::Coverage;
         }
 
         say"chrom\tratio\tfreq";
-        my $cmd = 'perl -ne \'print $_ unless $_ =~ /track/ || $_=~ /chr12/ || $_ =~ /chr12/ \' '. $bed_file .'| wc -l';
+        my $cmd = 'perl -ne \'print $_ unless $_ =~ /track/ || $_=~ /chr12/ || $_ =~ /chr15/ \' '. $bed_file .'| wc -l';
         my $total_transloc = qx/$cmd/;
 
         foreach my $n (sort {$a <=> $b} @numbers){
