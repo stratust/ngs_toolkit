@@ -3297,7 +3297,7 @@ package Chrom::Coverage;
     use Data::Dumper;
 
     sub get_coverage_per_chrom {
-        my ($self,$bed_file) = @_;
+        my ($self,$bed_file, $remove_chr12_and_chr15) = @_;
 
         my $chrom = $self->get_chrominfo();
 
@@ -3308,7 +3308,11 @@ package Chrom::Coverage;
         foreach my $r (@keys){
              if   ( $r =~ /chr(\d+)$/ ) { 
                  push(@numbers,$1);
+                 if ($remove_chr12_and_chr15){
+                     next if ($r =~ /chr12/ || $r =~ /chr15/)
+                 }
                  $genome_size +=  $chrom->{$r}->{size};
+
              }
            
         }
@@ -3318,6 +3322,10 @@ package Chrom::Coverage;
         my $total_transloc = qx/$cmd/;
 
         foreach my $n (sort {$a <=> $b} @numbers){
+
+            if ($remove_chr12_and_chr15){
+                next if ( $n == 12 || $n == 15);
+            }
             my $chr_name = 'chr'.$n;
             my $chr_size = $chrom->{$chr_name}->{size};
             my $interval = "$chr_name\t0\t".$chr_size;
@@ -5379,6 +5387,15 @@ package MyApp::Command::Chrom_Coverage;
         required      => 1,
         documentation => 'Translocation file in BED format',
     );
+ 
+    has 'remove_12_15' => (
+        is            => 'rw',
+        isa           => 'Bool',
+        traits        => ['Getopt'],
+        required      => 1,
+        documentation => 'Remove chr12 and chr15 from the coverage',
+    );
+    
     
 
     # Description of this command in first help
@@ -5389,7 +5406,7 @@ package MyApp::Command::Chrom_Coverage;
     sub execute {
         my ($self, $opt, $args ) = @_;
 
-           $self->get_coverage_per_chrom($self->input_file);
+           $self->get_coverage_per_chrom($self->input_file,$self->remove_12_15);
     }
 
 
