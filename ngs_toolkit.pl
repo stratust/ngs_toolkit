@@ -3300,18 +3300,18 @@ package Chrom::Coverage;
     # by the number of reads in the genome (how much that region contributes
     # for the genome coverage)
     sub get_coverage_per_region{
-        my ($self,$bed_file,$chr,$start,$end,$remove_chr15) = @_;
+        my ($self,$bed_file,$chr,$start,$end,$total_reads_region) = @_;
 
             # Remove chr15 of the total of reads
-            my $cmd = 'perl -ne \'print $_ unless $_ =~ /track/ || $_ =~ /chr15/ \' '. $bed_file .'| wc -l';
-            my $total_transloc = qx/$cmd/;
+            #my $cmd = 'perl -ne \'print $_ unless $_ =~ /track/ || $_ =~ /chr15/ \' '. $bed_file .'| wc -l';
+            #my $total_transloc = qx/$cmd/;
 
             my $interval = "$chr\t$start\t$end";
-            $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
+            my $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
             my $reads = qx/$cmd/;
             $reads = 0 unless $reads;
-            my $freq = $reads/$total_transloc;
-            say $interval."\t$freq";
+            my $freq = $reads/$total_reads_region;
+            say $interval."\t$freq\t$reads\t$total_reads_region";
     }
 
     sub get_coverage_per_chrom {
@@ -5469,14 +5469,35 @@ package MyApp::Command::Bin_Coverage;
     sub execute {
         my ($self, $opt, $args ) = @_;
 
+
            open( my $in, '<', $self->bin_file );
+           
+           my ($chr,$start,$end);
+           my $i=0;
+           my $row;
+           while ($row = <$in> ){
+               chomp $row;
+               next if $i > 0;
+               ($chr,$start,$end) = ($1,$2,$3) if ($row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+               $i++;
+           }
+           close( $in );
+           my ($chr2,$start2,$end2);
+           ($chr2,$start2,$end2) = ($1,$2,$3) if ($row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+           my $interval = "$chr\t$start\t$end2";
+
+           my $cmd = "echo $interval | intersectBed -a stdin -b ".$self->input_file." | wc -l";
+
+           my $total_reads_region = qx/$cmd/;
+
+           open( $in, '<', $self->bin_file );
            
            
            while ( my $row = <$in> ){
                chomp $row;
                my ($chr,$start,$end);
                ($chr,$start,$end) = ($1,$2,$3) if ($row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
-               $self->get_coverage_per_region($self->input_file,$chr,$start,$end);
+               $self->get_coverage_per_region($self->input_file,$chr,$start,$end,$total_reads_region);
                
            }
            close( $in );
