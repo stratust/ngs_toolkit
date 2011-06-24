@@ -3309,6 +3309,7 @@ package Chrom::Coverage;
             my $interval = "$chr\t$start\t$end";
             my $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$bed_file." | wc -l";
             my $reads = qx/$cmd/;
+            chomp $reads;
             $reads = 0 unless $reads;
             my $freq = $reads/$total_reads_region;
             say $interval."\t$freq\t$reads\t$total_reads_region";
@@ -5470,27 +5471,27 @@ package MyApp::Command::Bin_Coverage;
         my ($self, $opt, $args ) = @_;
 
 
-           open( my $in, '<', $self->bin_file );
-           
+           my $cmd = "head -1 ".$self->bin_file;
+           my $first_row = qx/$cmd/;           
            my ($chr,$start,$end);
-           my $i=0;
-           my $row;
-           while ($row = <$in> ){
-               chomp $row;
-               next if $i > 0;
-               ($chr,$start,$end) = ($1,$2,$3) if ($row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
-               $i++;
-           }
-           close( $in );
+           ($chr,$start,$end) = ($1,$2,$3) if ($first_row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+  
+           $cmd = "tail -1 ".$self->bin_file;
+           my $last_row =qx/$cmd/;
            my ($chr2,$start2,$end2);
-           ($chr2,$start2,$end2) = ($1,$2,$3) if ($row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+           ($chr2,$start2,$end2) = ($1,$2,$3) if ($last_row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
            my $interval = "$chr\t$start\t$end2";
 
-           my $cmd = "echo $interval | intersectBed -a stdin -b ".$self->input_file." | wc -l";
-
+           $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$self->input_file." | wc -l";
+            
            my $total_reads_region = qx/$cmd/;
 
-           open( $in, '<', $self->bin_file );
+           $total_reads_region = $1 if $total_reads_region =~ /(\d+)/;
+
+           $total_reads_region = 1 unless $total_reads_region;
+
+
+           open( my $in, '<', $self->bin_file );
            
            
            while ( my $row = <$in> ){
