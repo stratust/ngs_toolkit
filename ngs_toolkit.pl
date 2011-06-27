@@ -3331,7 +3331,7 @@ package Chrom::Coverage;
             #3 ) size of B 
             #4 ) % of B at depth
 
-            my $cmd = "coverageBed -a ".$bed_file." -b ".$bin_file;
+            my $cmd = "coverageBed -a ".$bed_file." -b ".$bin_file." | sort -k2n,2";
             my $coverage = qx/$cmd/;
 
             say $coverage;
