@@ -3315,6 +3315,29 @@ package Chrom::Coverage;
             say $interval."\t$freq\t$reads\t$total_reads_region";
     }
 
+    # Given a region compute the coverage for thar region and correct
+    # by the number of reads in the genome (how much that region contributes
+    # for the genome coverage)
+    sub get_coverage_per_region_alternative{
+        my ($self,$bed_file,$bin_file,$total_reads_region) = @_;
+
+            # Remove chr15 of the total of reads
+            #my $cmd = 'perl -ne \'print $_ unless $_ =~ /track/ || $_ =~ /chr15/ \' '. $bed_file .'| wc -l';
+            #my $total_transloc = qx/$cmd/;
+
+            #Output (tab delimited) after each feature in B:
+            #1 ) depth
+            #2 ) # bases at depth
+            #3 ) size of B 
+            #4 ) % of B at depth
+
+            my $cmd = "coverageBed -a ".$bed_file." -b ".$bin_file;
+            my $coverage = qx/$cmd/;
+
+            say $coverage;
+    }
+
+
     sub get_coverage_per_chrom {
         my ($self,$bed_file, $remove_chr12_and_chr15) = @_;
 
@@ -5470,38 +5493,38 @@ package MyApp::Command::Bin_Coverage;
     sub execute {
         my ($self, $opt, $args ) = @_;
 
-
-           my $cmd = "head -1 ".$self->bin_file;
-           my $first_row = qx/$cmd/;           
-           my ($chr,$start,$end);
-           ($chr,$start,$end) = ($1,$2,$3) if ($first_row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+           $self->get_coverage_per_region_alternative($self->input_file,$self->bin_file);
+           #my $cmd = "head -1 ".$self->bin_file;
+           #my $first_row = qx/$cmd/;           
+           #my ($chr,$start,$end);
+           #($chr,$start,$end) = ($1,$2,$3) if ($first_row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
   
-           $cmd = "tail -1 ".$self->bin_file;
-           my $last_row =qx/$cmd/;
-           my ($chr2,$start2,$end2);
-           ($chr2,$start2,$end2) = ($1,$2,$3) if ($last_row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
-           my $interval = "$chr\t$start\t$end2";
+           #$cmd = "tail -1 ".$self->bin_file;
+           #my $last_row =qx/$cmd/;
+           #my ($chr2,$start2,$end2);
+           #($chr2,$start2,$end2) = ($1,$2,$3) if ($last_row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+           #my $interval = "$chr\t$start\t$end2";
 
-           $cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$self->input_file." | wc -l";
+           #$cmd = "echo '".$interval."' | intersectBed -a stdin -b ".$self->input_file." | wc -l";
             
-           my $total_reads_region = qx/$cmd/;
+           #my $total_reads_region = qx/$cmd/;
 
-           $total_reads_region = $1 if $total_reads_region =~ /(\d+)/;
+           #$total_reads_region = $1 if $total_reads_region =~ /(\d+)/;
 
-           $total_reads_region = 1 unless $total_reads_region;
+           #$total_reads_region = 1 unless $total_reads_region;
 
 
-           open( my $in, '<', $self->bin_file );
+           #open( my $in, '<', $self->bin_file );
            
            
-           while ( my $row = <$in> ){
-               chomp $row;
-               my ($chr,$start,$end);
-               ($chr,$start,$end) = ($1,$2,$3) if ($row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
-               $self->get_coverage_per_region($self->input_file,$chr,$start,$end,$total_reads_region);
+           #while ( my $row = <$in> ){
+               #chomp $row;
+               #my ($chr,$start,$end);
+               #($chr,$start,$end) = ($1,$2,$3) if ($row =~ /^(\S+)\s+(\d+)\s+(\d+)/);
+               #$self->get_coverage_per_region($self->input_file,$chr,$start,$end,$total_reads_region);
                
-           }
-           close( $in );
+           #}
+           #close( $in );
            
            
            
