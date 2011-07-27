@@ -5535,6 +5535,83 @@ package MyApp::Command::Bin_Coverage;
 }
 1;
 
+package MyApp::Command::Merge_Genes; 
+{
+    use Moose;
+    use 5.10.0;
+    use File::Temp;
+
+    extends qw/MooseX::App::Cmd::Command/;
+
+    has 'input_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases     => 'i',
+        required      => 1,
+        documentation => 'Sorted Gene file in BED format',
+    );
+   
+    
+ 
+    
+
+    # Description of this command in first help
+    sub abstract { 'Merge a *** SORTED*** by symbol bed list with genes'; }
+
+    sub proc_aux {
+        my ($self,@aux) = @_;
+        if ( $#aux > 0 ) {
+            my $fh    = File::Temp->new();
+            my $fname = $fh->filename;
+            print $fh @aux;
+            my $cmd = 'mergeBed -nms -i ' . $fname;
+            my $out = qx/$cmd/;
+            $out =~ s/\;.*//g;
+            print $out;
+        }
+        else {
+            print $aux[0];
+        }
+    }
+    
+    # method used to run the command
+    sub execute {
+        my ($self, $opt, $args ) = @_;
+
+        open( my $in, '<', $self->input_file );
+        
+        my $last;
+        my @aux;
+        while ( my $row = <$in> ){
+            my ($chr,$start,$end,$symbol,$strand) = split /\s+/, $row;
+            
+
+            if ( $last && $last ne $symbol ) {
+                $self->proc_aux(@aux);
+                @aux = ();
+                push @aux, $row;
+            }
+            else {
+                push( @aux, $row );
+            }
+
+            $last = $symbol;
+        }
+
+        $self->proc_aux(@aux);
+        close( $in );
+        
+        
+        
+
+
+    }
+
+
+}
+1;
+
 
 #-------------------------------------------------------------------------------------------------------
 # TESTING METHODS 
