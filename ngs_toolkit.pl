@@ -4015,7 +4015,6 @@ package MyApp::Command::binBed;
 
     # Working with files and directories as attributes
     extends 'MooseX::App::Cmd::Command';
-    use Data::Dumper;
 
     has 'chr'          => ( isa => 'Str',  is => 'rw', documentation => 'Chromosome', required => 1 );
     has 'start'        => ( isa => 'Int',  is => 'rw', documentation => 'Start Position', required => 1 );
@@ -5561,6 +5560,7 @@ package MyApp::Command::Merge_Genes;
 
     sub proc_aux {
         my ($self,@aux) = @_;
+        my ($chr,$start,$end,$symbol,$strand) = split /\s+/, $aux[0];
         if ( $#aux > 0 ) {
             my $fh    = File::Temp->new();
             my $fname = $fh->filename;
@@ -5568,6 +5568,7 @@ package MyApp::Command::Merge_Genes;
             my $cmd = 'mergeBed -nms -i ' . $fname;
             my $out = qx/$cmd/;
             $out =~ s/\;.*//g;
+            $out =~ s/\n/\t$strand\n/g;
             print $out;
         }
         else {
@@ -5587,7 +5588,7 @@ package MyApp::Command::Merge_Genes;
             my ($chr,$start,$end,$symbol,$strand) = split /\s+/, $row;
             
 
-            if ( $last && $last ne $symbol ) {
+            if ( $last && $last ne $symbol.$strand  ) {
                 $self->proc_aux(@aux);
                 @aux = ();
                 push @aux, $row;
@@ -5596,7 +5597,7 @@ package MyApp::Command::Merge_Genes;
                 push( @aux, $row );
             }
 
-            $last = $symbol;
+            $last = $symbol.$strand;
         }
 
         $self->proc_aux(@aux);
