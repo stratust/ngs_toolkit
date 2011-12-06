@@ -4019,7 +4019,17 @@ package MyApp::Command::binBed;
     has 'chr'          => ( isa => 'Str',  is => 'rw', documentation => 'Chromosome', required => 1 );
     has 'start'        => ( isa => 'Int',  is => 'rw', documentation => 'Start Position', required => 1 );
     has 'end'          => ( isa => 'Int',  is => 'rw', documentation => 'End Position', required => 1 );
-    has 'bin_size' => ( isa => 'Int',  is => 'rw', documentation => 'Bin size in base pairs' );
+    has 'bin_size' => (
+        isa           => 'Int',
+        is            => 'rw',
+        documentation => 'Bin size in base pairs',
+        required => 1
+    );
+    has 'strand' => (
+        isa           => 'Str',
+        is            => 'rw',
+        documentation => 'Start to create bins from begin (+) or end (-)'
+    );
 
     # MooseX::App:Cmd Execute method (call all your above methods bellow)
     # =================================================================================================
@@ -4035,6 +4045,7 @@ package MyApp::Command::binBed;
          for (my $var = ($self->start -1 ); $var < $self->end ; $var+= $self->bin_size) {
              $start_aux = $var;
              $end_aux = $start_aux + $self->bin_size;
+             $end_aux = $self->end if ($end_aux > $self->end);
              my @row = (
                  $self->chr,
                 $start_aux,
@@ -5580,7 +5591,14 @@ package MyApp::Command::Merge_Genes;
     sub execute {
         my ($self, $opt, $args ) = @_;
 
-        open( my $in, '<', $self->input_file );
+
+        my $in;
+        if ($self->input_file eq '-'){
+            $in = 'STDIN';
+        }
+        else{
+            open( $in, '<', $self->input_file );
+        }
         
         my $last;
         my @aux;
