@@ -4,238 +4,145 @@ use Moose;
 use MooseX::Declare;
 use 5.10.0;
 
-=cut
-class MooseX::Bio::DB::Bam::Query {
-    has 'display_name' => (
-        is            => 'rw',
-        isa           => 'Str',
-        required      => 0,
-    );
- 
-    has 'start' => (
-        is            => 'rw',
-        isa           => 'Int',
-        required      => 0,
-    );
+# Store the log_path
+our $log_path;
+our $logfile_path;
 
-    has 'end' => (
-        is            => 'rw',
-        isa           => 'Int',
-        required      => 0,
-    );
-
-    has 'dna' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 0,
-    );
-
-    has 'primary_tag' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 0,
-    );
-
-    has 'source_tag' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 0,
-    );
-
-    has 'seq' => (
-        is       => 'rw',
-        isa      => 'Object',
-        required => 0,
-    );
-
-#    has 'qscore' => (
-        #is       => 'rw',
-        #isa      => 'ArrayRef[Int]',
-        #required => 0,
-    #);
-
-    has 'strand' => (
-        is       => 'rw',
-        isa      => 'Int',
-        required => 0,
-    );
-
+sub logfile {
+    return $logfile_path;
 }
 
-class MooseX::Bio::DB::Bam::Alignment {
-     
-    has 'seq_id' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 1,
-    );
-
-    has 'start' => (
-        is       => 'rw',
-        isa      => 'Int',
-        required => 1,
-    );
-
-    has 'end' => (
-        is       => 'rw',
-        isa      => 'Int',
-        required => 1,
-    );
-    has 'length' => (
-        is       => 'rw',
-        isa      => 'Int',
-        required => 1,
-    );
-
-    has 'strand' => (
-        is       => 'rw',
-        isa      => 'Int',
-        required => 1,
-    );
-    has 'mstrand' => (
-        is       => 'rw',
-        isa      => 'Int',
-        required => 1,
-    );
-
-    has 'dna' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 1,
-    );
-
-     has 'seq' => (
-        is       => 'rw',
-        isa      => 'Object',
-        required => 1,
-    );
-      has 'query' => (
-        is       => 'rw',
-        isa      => 'Object',
-        required => 1,
-    );
-     has 'target' => (
-        is       => 'rw',
-        isa      => 'Object',
-        required => 1,
-    );
-#    has 'hit' => (
-        #is       => 'rw',
-        #isa      => 'Object',
-        #required => 1,
-    #);
-      has 'primary_id' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 1,
-    );
-
-     has 'cigar_str' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 1,
-    );
-
-    has 'ref_padded' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 1,
-    );
-      has 'matches_padded' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 1,
-    );
-    has 'query_padded' => (
-        is       => 'rw',
-        isa      => 'Str',
-        required => 1,
-    );
-    has 'aux' => (
-        is            => 'rw',
-        isa           => 'Str',
-        required      => 1,
-    );
-     has 'tam_line' => (
-        is            => 'rw',
-        isa           => 'Str',
-        required      => 1,
-    );
+# Log Role
+role MyApp::Log {
+    use Log::Log4perl qw(:easy);
+    with 'MooseX::Log::Log4perl::Easy';
  
-    method padded_alignment() {
+    use Cwd 'abs_path';
+    use File::Basename;
+    use File::Path;
 
-        return ( $self->ref_padded, $self->matches_padded, $self->query_padded );
+    # Configuring log 
+    BEGIN {
+        my $logconf_file    = 'log4perl.conf';
+        my $log_conf_path   = '';
+        my $full_path       = abs_path($0);
+        my $script_path     = dirname($full_path);
+        my $current_path    = &Cwd::cwd();
+        my $script_filename = basename($full_path);
+        my $script_name     = $script_filename;
 
+        # Removing extension
+        $script_name =~ s/\.\S+$//;
+        
+        $log_path = &Cwd::cwd().'/logs/';
+        unless (-e $log_path){
+            mkpath($log_path);
+        }
+        $logfile_path = $log_path . $script_name . '.log';
+        my $logtracefile_path = $log_path . $script_name . '_trace.log';
+
+
+        # Verifify conf path
+        if ( -d $current_path . '/conf' ) {
+            $log_conf_path = $current_path.'/conf/';
+        }
+        elsif ( -d $current_path . '/../conf' ) {
+            $log_conf_path = $current_path. '/../conf/';
+        }
+
+        # Name of the custom file: "script_name"_log4perl.conf
+        my $personal_logconf_file = $script_name . '_log4perl.conf';
+
+        if ( -e $current_path . $personal_logconf_file ) {
+            $logconf_file = $personal_logconf_file;
+        }
+
+        $log_conf_path .= $logconf_file
+          if ( -e $log_conf_path . $logconf_file );
+       
+        if ($log_conf_path){
+            Log::Log4perl->init($log_conf_path);
+        }
+        else {
+            Log::Log4perl->init(
+                \qq{
+
+                log4perl.rootLogger = TRACE, LOGFILE, Screen, AppTrace
+
+                # Filter to match level ERROR
+                log4perl.filter.MatchError = Log::Log4perl::Filter::LevelMatch
+                log4perl.filter.MatchError.LevelToMatch  = ERROR
+                log4perl.filter.MatchError.AcceptOnMatch = true
+ 
+                # Filter to match level DEBUG
+                log4perl.filter.MatchDebug = Log::Log4perl::Filter::LevelMatch
+                log4perl.filter.MatchDebug.LevelToMatch  = DEBUG
+                log4perl.filter.MatchDebug.AcceptOnMatch = true
+ 
+                # Filter to match level WARN
+                log4perl.filter.MatchWarn  = Log::Log4perl::Filter::LevelMatch
+                log4perl.filter.MatchWarn.LevelToMatch  = WARN
+                log4perl.filter.MatchWarn.AcceptOnMatch = true
+ 
+                # Filter to match level INFO
+                log4perl.filter.MatchInfo  = Log::Log4perl::Filter::LevelMatch
+                log4perl.filter.MatchInfo.LevelToMatch  = INFO
+                log4perl.filter.MatchInfo.AcceptOnMatch = true
+ 
+                # Filter to match level TRACE
+                log4perl.filter.MatchTrace  = Log::Log4perl::Filter::LevelMatch
+                log4perl.filter.MatchTrace.LevelToMatch  = TRACE
+                log4perl.filter.MatchTrace.AcceptOnMatch = true
+ 
+                # Filter to match level TRACE
+                log4perl.filter.NoTrace  = Log::Log4perl::Filter::LevelMatch
+                log4perl.filter.NoTrace.LevelToMatch  = TRACE
+                log4perl.filter.NoTrace.AcceptOnMatch = false
+
+
+                log4perl.appender.LOGFILE=Log::Log4perl::Appender::File
+                log4perl.appender.LOGFILE.filename= $logfile_path
+                log4perl.appender.LOGFILE.mode=append
+                log4perl.appender.LOGFILE.layout=Log::Log4perl::Layout::PatternLayout
+                log4perl.appender.LOGFILE.layout.ConversionPattern=%d %p> %F{1}:%L %M%n%m%n%n
+                log4perl.appender.LOGFILE.Filter = NoTrace
+
+                # Error appender
+                log4perl.appender.AppError = Log::Log4perl::Appender::File
+                log4perl.appender.AppError.filename = $logfile_path
+                log4perl.appender.AppError.layout   = SimpleLayout
+                log4perl.appender.AppError.Filter   = MatchError
+ 
+                # Warning appender
+                log4perl.appender.AppWarn = Log::Log4perl::Appender::File
+                log4perl.appender.AppWarn.filename = $logfile_path
+                log4perl.appender.AppWarn.layout   = SimpleLayout
+                log4perl.appender.AppWarn.Filter   = MatchWarn
+
+                # Debug  appender
+                log4perl.appender.AppDebug = Log::Log4perl::Appender::File
+                log4perl.appender.AppDebug.filename = $logfile_path
+                log4perl.appender.AppDebug.layout   = SimpleLayout
+                log4perl.appender.AppDebug.Filter   = MatchDebug
+
+                # Trace  appender
+                log4perl.appender.AppTrace = Log::Log4perl::Appender::File
+                log4perl.appender.AppTrace.filename = $logtracefile_path
+                log4perl.appender.AppTrace.layout   = SimpleLayout
+                log4perl.appender.AppTrace.Filter   = MatchTrace
+
+                # Screen Appender (Info only)
+                log4perl.appender.Screen = Log::Log4perl::Appender::ScreenColoredLevels
+                log4perl.appender.Screen.stderr = 0
+                log4perl.appender.Screen.layout = Log::Log4perl::Layout::PatternLayout
+                log4perl.appender.Screen.layout.ConversionPattern = %d %m %n
+                log4perl.appender.Screen.Filter = MatchInfo
+
+
+            });
+        }
     }
-
 }
-
-# Build a fake Bio::DB::Bam::Alignment object
-# to be able to store in KiokuDB
-class Fake::Bio::DB::Bam {
-    use Data::Dumper;
-    import MooseX::Bio::DB::Bam::Alignment;
-    import MooseX::Bio::DB::Bam::Query;
-
-    method fake_align_obj($align) {
-        
-        # create fake query Object
-        my $fake_query = MooseX::Bio::DB::Bam::Query->new(
-            display_name => $align->query->display_name,
-            start        => $align->query->start,
-            end          => $align->query->end,
-            dna          => $align->query->dna,
-            primary_tag  => $align->query->primary_tag,
-            source_tag   => $align->query->source_tag,
-            seq          => $align->query->seq,
-#            qscore       => $align->query->qscore,
-            strand       => $align->query->strand,
-        );
- 
-        # create fake target Object
-        my $fake_target = MooseX::Bio::DB::Bam::Query->new(
-            display_name => $align->target->display_name,
-            start        => $align->target->start,
-            end          => $align->target->end,
-            dna          => $align->target->dna,
-            primary_tag  => $align->target->primary_tag,
-            source_tag   => $align->target->source_tag,
-            seq          => $align->target->seq,
-#            qscore       => $align->target->qscore,
-            strand       => $align->target->strand,
-        );
-        
-
-        my ($ref,$matches,$query) = $align->padded_alignment;
-
-        # create fake align Object
-        my $fake_align = MooseX::Bio::DB::Bam::Alignment->new(
-            'seq_id'         => $align->seq_id,
-            'start'          => $align->start,
-            'end'            => $align->end,
-            'length'         => $align->length,
-            'strand'         => $align->strand,
-            'mstrand'        => $align->mstrand,
-            'dna'            => $align->dna,
-            'seq'            => $align->seq,
-            'query'          => $fake_query,
-            'target'         => $fake_target,
-#            'hit'            => $align->hit,
-            'primary_id'     => $align->primary_id,
-            'cigar_str'      => $align->cigar_str,
-            'ref_padded'     => $ref,
-            'matches_padded' => $matches,
-            'query_padded'   => $query,
-            'aux'            => $align->aux,
-            'tam_line'       => $align->tam_line,
-
-        );
-        
-        return $fake_align;
-    }
-
-}
-=cut 
 
 class Target::Classification {
 
@@ -258,48 +165,45 @@ class Target::Classification {
         isa           => 'Bool',
     );
 
-    has 'is_blunt' => (
+    has 'bait_is_blunt' => (
         is            => 'rw',
         isa           => 'Bool',
-        dependency => None['has_deletion'],
+        dependency => None['bait_deletion_size'],
     );
 
-    has 'has_deletion' => (
+    has 'target_is_blunt' => (
         is            => 'rw',
         isa           => 'Bool',
-        dependency => None['is_blunt'],
+        dependency => None['target_deletion_size','is_translocation'],
     );
 
-    has 'deletion_size' => (
+
+    has 'bait_deletion_size' => (
         is            => 'rw',
         isa           => 'Int',
-        dependency => All['has_deletion'],
+        dependency => None['is_blunt'],
+        predicate => 'has_bait_deletion',
     );
 
-    has 'has_insertion' => (
+    # target deletion will be accepted only for rearrangements
+    has 'target_deletion_size' => (
         is            => 'rw',
-        isa           => 'Bool',
+        isa           => 'Int',
+        dependency => None['target_is_blunt','is_translocation'],
+        predicate => 'has_target_deletion',
     );
 
     has 'insertion_size' => (
         is            => 'rw',
         isa           => 'Int',
-        dependency => All['has_insertion'],
-    );
-
-    has 'has_microhomology' => (
-        is            => 'rw',
-        isa           => 'Bool',
-        dependency => None['has_insertion'],
+        predicate => 'has_insertion'
     );
 
     has 'microhomology_size' => (
         is            => 'rw',
         isa           => 'Int',
-        dependency => All['has_microhomology'],
+        predicate => 'has_microhomology'
     );
-
-
     
 }
 
@@ -312,6 +216,9 @@ class MyApp::Command {
     # A Moose role for setting attributes from a simple configfile
     # It uses Config:Any so it can handle many formats (YAML, Apace, JSON, XML, etc..)
     with 'MooseX::SimpleConfig';
+    with 'MyApp::Log';
+
+    use List::MoreUtils;
 
     # Control the '--configfile' option
     has '+configfile' => (
@@ -319,21 +226,20 @@ class MyApp::Command {
         cmd_aliases => 'c',
         isa         => 'Str',
         is          => 'rw',
-        required    => 1,
+        required    => 0,
         documentation => 'Configuration file (accept the following formats: YAML, CONF, XML, JSON, etc)',
     );
 
 }
 
 class MyApp::Command::Classify {
-    extends 'MooseX::App::Cmd::Command';
+    extends 'MooseX::App::Cmd::Command', 'MyApp::Command';
     use MooseX::FileAttribute;
     use Carp;
     use Bio::DB::Sam;
     use Data::Dumper;
-    use List::Util qw(max);
+    use List::Util qw(max min sum);
     use Text::Padding;
-    import Fake::Bio::DB::Bam;
 
     # Class attributes (program options - MooseX::Getopt)
     has_file 'input_file' => (
@@ -358,8 +264,19 @@ class MyApp::Command::Classify {
         traits        => ['Getopt'],
         cmd_aliases   => 'b',
         required      => 0,
-        default       => 'chr15:61818182-61818333',
-        documentation => 'Bait position (from primer to break). Default: chr15:61818182-61818333',
+        default       => 'chr15:61818182-61818339',
+        documentation => 'Bait position (from primer to break). Default: chr15:61818182-61818339',
+    );
+
+    has 'enzime_restriction_size' => (
+        is            => 'rw',
+        isa           => 'Int',
+        traits        => ['Getopt'],
+        cmd_aliases   => 'b',
+        required      => 0,
+        default       => '4',
+        documentation => 'How much restriction enzime will cleave from bait
+        site. Default: 4',
     );
 
     has_file 'alignment_output_file' => (
@@ -380,7 +297,28 @@ class MyApp::Command::Classify {
         default => '.',
         documentation => 'Path where the genereated files will be placed',
     );
+
+     has 'fragment_size' => (
+         is            => 'rw',
+         isa           => 'Int',
+         traits        => ['Getopt'],
+         cmd_aliases   => 's',
+         required      => 1,
+         default       => 36,
+         documentation => 'Mininum fragment size to be analyzed (for bait and target). Default: 36',
+     );
+     
+      has 'min_mapq' => (
+         is            => 'rw',
+         isa           => 'Int',
+         traits        => ['Getopt'],
+         cmd_aliases   => 'q',
+         required      => 1,
+         default       => 30,
+         documentation => 'Mininum SAM MAPQ each fragment should have to be analyzed (for bait and target). Default: 30',
+     );
     
+      our $reads_to_clustering;
     
    
     # Description of this command in first help
@@ -619,59 +557,79 @@ class MyApp::Command::Classify {
 
 =cut
     
-    method cluster_alignments( HashRef $alignments_to_cluster) {
+    method clustering_alignments( HashRef $alignments_to_cluster) {
+
+        my ($chr,$start,$end);
+        ($chr,$start,$end) = ($1,$2,$3) if $self->bait_position =~ /(\S+):(\d+)-(\d+)/;
 
         my %cluster;
-        foreach my $read_id (keys %{$alignments_to_cluster}){
-        
-                # INDEXING BY BREAK POINT (removing PCR duplicates)
-                
-                # Building key
-                
-                my $bait = $alignments_to_cluster->{$read_id}->{bait};
-                
-                my $bait_strand = '+';
-                
-                $bait_strand = '-' if $bait->strand == -1;
-                
-                # Get read start and end
-                my ($bait_query_end, $bait_query_start);
-                
-                # For the read strand matters
-                if ($bait_strand  eq '+'){
-                    $bait_query_end= $bait->query->end;
-                    $bait_query_start = $bait->query->start;
-                }
-                else{
-                    $bait_query_end = ( 
-                        length($bait->query->seq->seq) - $bait->query->end 
-                    );
+        foreach my $read_id ( keys %{$alignments_to_cluster} ) {
 
-                    $bait_query_start = ( 
-                        length($bait->query->seq->seq) - $bait->query->start
-                    );
+            # INDEXING BY BREAK POINT (removing PCR duplicates)
 
-                }
+            # Building key
+            
+            # If is bait only, key was already built
+            if ($alignments_to_cluster->{$read_id}->{key}){
+                my $this_key = $alignments_to_cluster->{$read_id}->{key};
+                push @{ $cluster{$this_key} },
+                  $alignments_to_cluster->{$read_id};
 
-                my $key = $bait->seq_id.'_'.$bait->end.'_'.$bait_strand;
-                next unless $alignments_to_cluster->{$read_id}->{targets};
+                next;
+            }
 
-                my %targets = %{$alignments_to_cluster->{$read_id}->{targets}};
+            # Bio::DB::Sam alignment object
+            my $bait = $alignments_to_cluster->{$read_id}->{bait};
 
-                #Index targets by chromosome
-                
+            my $bait_strand = '+';
+
+            $bait_strand = '-' if $bait->strand == -1;
+
+            # Get read start and end
+            my ( $bait_query_end, $bait_query_start );
+
+            # For reads strand matters
+            if ( $bait_strand eq '+' ) {
+                $bait_query_end   = $bait->query->end;
+                $bait_query_start = $bait->query->start;
+            }
+            else {
+                $bait_query_end =
+                  ( length( $bait->query->seq->seq ) - $bait->query->end );
+
+                $bait_query_start =
+                  ( length( $bait->query->seq->seq ) - $bait->query->start );
+
+            }
+
+            #Correcting pseudoblunt targens in split-reads:
+            # verify if bait pass througth breakpoint
+            my $corrected_bait_end = $bait->end;
+            if ( $bait->end > ( $end - 1 ) ) {
+                $corrected_bait_end = $end;
+            }
+
+
+            my $key = $bait->seq_id . '_' . $corrected_bait_end . '_' . $bait_strand;
+
+            # Skip reads that don't have targets
+            #next unless $alignments_to_cluster->{$read_id}->{targets};
+
+            my %targets;
+            if ( $alignments_to_cluster->{$read_id}->{targets} ) {
+                %targets = %{ $alignments_to_cluster->{$read_id}->{targets} };
+
                 # Sorting by read start
                 foreach my $query_start ( sort { $a <=> $b } keys %targets ) {
-                    
-                    # Usualy Should have just one splice here 
+
+                    # Usually Should have just one splice here
                     foreach my $target ( @{ $targets{$query_start} } ) {
 
                         my $chr    = $target->seq_id;
                         my $strand = '+';
                         $strand = '-' if $target->strand == -1;
 
-
-                        my ($target_query_end, $target_query_start);
+                        my ( $target_query_end, $target_query_start );
 
                         if ( $strand eq '+' ) {
                             $target_query_end   = $target->query->end;
@@ -682,51 +640,90 @@ class MyApp::Command::Classify {
                                 length( $target->query->seq->seq ) -
                                   $target->query->end );
 
-                            $bait_query_start = (
-                                length( $target->query->seq->seq ) -
-                                  $target->query->start );
+                            #$bait_query_start = (
+                            #    length( $target->query->seq->seq ) -
+                            #      $target->query->start );
 
                         }
 
                         # Keep diff between bait and target
-                        # Necessary to know if is blunt, insertion or deletion
+                        # Information necessary to know if is blunt, insertion or deletion
                         my $diff_read;
 
                         if ( $strand eq $bait_strand ) {
-                            
-                            if ( $bait_strand eq '+'){
-                                $diff_read = $target_query_start - $bait_query_end;
+
+                            if ( $bait_strand eq '+' ) {
+                                $diff_read =
+                                  $target_query_start - $bait_query_end;
                             }
-                            else{
-                            
-                                $diff_read = $bait_query_start - $target_query_end; 
+                            else {
+
+                                $diff_read =
+                                  $target_query_end - $bait_query_start;
                             }
 
-                            $key .=
-                            '|'.$target->seq_id.'_'.$target->start.'_'.$strand;
+                            $key .= '|'
+                              . $target->seq_id . '_'
+                              . $target->start . '_'
+                              . $strand;
 
                         }
                         else {
-                            if ( $bait_strand eq '+'){
-                                $diff_read =  $target_query_end -
-                                $bait_query_end;
+                            if ( $bait_strand eq '+' ) {
+                                $diff_read =
+                                  $target_query_end - $bait_query_end;
                             }
-                            else{
-                            
-                                $diff_read = $bait_query_start - $target_query_start;
+                            else {
+
+                                $diff_read =
+                                  $bait_query_start - $target_query_start;
                             }
 
-
-                            $key .= '|'.$target->seq_id.'_'.$target->end.'_'.$strand;
+                            $key .= '|'
+                              . $target->seq_id . '_'
+                              . $target->end . '_'
+                              . $strand;
                         }
 
                         # Add diff to key
-                        $key .= '_'.$diff_read;
+                        $key .= '_' . $diff_read;
                     }
                 }
-                push @{$cluster{$key}},$alignments_to_cluster->{$read_id};
-          }
-          return \%cluster;
+            }
+            push @{ $cluster{$key} }, $alignments_to_cluster->{$read_id};
+        }
+
+        my @summary;
+        my $total_clusters = scalar keys %cluster;
+
+        push @summary, "\t- Total number of clusters: "
+          . $total_clusters . "("
+          . ($total_clusters / $reads_to_clustering * 100)."%)";
+
+        my @clusters_size;
+        foreach my $k (keys %cluster){
+            push @clusters_size, scalar @{$cluster{$k}};
+        }
+
+        my ($min_cluster_size, $max_cluster_size,$avg_cluster_size) =
+        (min(@clusters_size), max(@clusters_size),(sum(@clusters_size)/scalar(@clusters_size)));
+        
+        push @summary, "\t- Mininum number of reads in a cluster: "
+          . $min_cluster_size;
+
+        push @summary, "\t- Maximum number of reads in a cluster: "
+          . $max_cluster_size;
+
+        push @summary, "\t- Average number of reads in a cluster: "
+          . $avg_cluster_size;
+        
+        push @summary, "\t- Sum of read in clusters: "
+          . sum(@clusters_size);
+
+
+        $self->log_debug(join "\n",@summary);
+
+        return \%cluster;
     }
 
 =head2 show_clusters_alignment
@@ -739,17 +736,28 @@ class MyApp::Command::Classify {
 
 =cut 
 
-    method show_clusters_alignment( HashRef $cluster) {
+    method show_clusters_alignment( HashRef $cluster, HashRef $classification) {
 
         open( my $out, '>', $self->output_path.'/'.$self->alignment_output_file );
         
-
+        my $meta = Target::Classification->meta;
+ 
         foreach my $break ( keys %{$cluster} ) {
             my @reads = @{$cluster->{$break}};
 
-            say $out 'BREAK: '.$break."\treads:\t" .scalar @reads;
+            say $out 'BREAK: ' . $break . "\treads:\t" . scalar @reads;
             say $out
             '++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++';
+            if ($classification) {
+                #say Dumper $classification->{$break} unless $classification->{$break}->[0];
+                
+                    for my $attr ( $meta->get_all_attributes ) {
+                        my $name = $attr->name;
+                        say $out $name . ":" . $classification->{$break}->[0]->$name
+                          if $classification->{$break}->[0]->$name;
+                    }
+
+            }
             say $out '';
             foreach my $read (@reads) {
 
@@ -773,7 +781,7 @@ class MyApp::Command::Classify {
 
                 say $out "";
 
-
+                
                 foreach my $qstart ( sort {$a <=> $b} keys %{ $read->{targets} } ) {
 
 
@@ -825,11 +833,8 @@ class MyApp::Command::Classify {
 =cut 
 
     method classify( HashRef $alignment_cluster) {
-        use Graph::Convert;
         import Target::Classification;
        
-        my $g = Graph->new();
-        
         #Get break position;
         my ($bait_real_chr,$bait_real_start,$bait_real_end);
         ($bait_real_chr,$bait_real_start,$bait_real_end) = ($1,$2,$3) if $self->bait_position =~ /(\S+):(\d+)-(\d+)/;
@@ -862,31 +867,36 @@ class MyApp::Command::Classify {
             # (maybe real but difficult to explain)
             next if $deletion_size < 0;
 
-            $g->add_vertex("$splices[0]");
-
-            $g->set_vertex_attributes(
-                $splices[0], 
-                {
-                    fill => 'red',
-                    'x-resection' => $deletion_size,
-                }
-            );
-
             # Skip bait (index 0) and get target information
             for (my $i = 1; $i <= $#splices; $i++) {
 
             my (
                 $alignment_target_chr,     $alignment_target_start,
-                $alignment_target_strand, $target_difference
+                $alignment_target_strand, $target_difference, $del_before,
+                $del_after, $bait_only
             );
+
+            if ($splices[$i] =~ /^(\S+)_(\d+)_([+-])_(-{0,1}\d+)$/){
 
             (
                 $alignment_target_chr,     $alignment_target_start,
                 $alignment_target_strand, $target_difference
               )
-              = ( $1, $2, $3, $4 )
-              if $splices[$i] =~ /^(\S+)_(\d+)_(\S+)_(\S+)/;
-
+              = ( $1, $2, $3, $4 );
+            }
+            elsif ($splices[$i] =~ /^(\S+)_(\d+)_([+-])_(-{0,1}\d+)_(-{0,1}\d+)$/){
+             (
+                $alignment_target_chr,     $alignment_target_start,
+                $alignment_target_strand, $del_before, $del_after
+              )
+              = ( $1, $2, $3, $4, $5 );
+              $bait_only = 1;
+              $target_difference = 0;
+           
+            }
+            else {
+                die "error ".$break;
+            }
 
                 # CLASSIFICATION ALGORITHM
                 # ---------------------------------------------------------
@@ -894,10 +904,34 @@ class MyApp::Command::Classify {
 
                 my $target_class = Target::Classification->new();
 
+                # * Base on strand of the target related to bait
+                #  - inversions
+                $target_class->is_inversion(1)
+                  if ( $alignment_bait_strand ne $alignment_target_strand );
+
                 # Rearrangements
                 if ($bait_real_chr eq $alignment_target_chr){
 
                     $target_class->is_rearrangement(1);
+
+                    # Looking for deletions of the parter if:
+                    #  - Is a rearrangement
+                    #  - Split only in two reads
+                    
+                    if (scalar @splices == 2 ){
+
+                        # calculate target_real_Start
+                        my $target_real_start = $bait_real_end + $self->enzime_restriction_size;
+                        my $target_deletion = $alignment_target_start - $target_real_start;
+
+                        if ($bait_only){
+                            $target_class->target_deletion_size($del_after);
+                        }
+                        elsif ( (!$target_class->is_inversion) && (
+                                $target_deletion > 0 )){
+                            $target_class->target_deletion_size($target_deletion);
+                        }
+                    }
 
                 }
                 # Traslocations
@@ -906,11 +940,6 @@ class MyApp::Command::Classify {
 
                     $target_class->is_translocation(1);
                 }
-
-                # * Base on strand of the target related to bait
-                #  - inversions
-                $target_class->is_inversion(1)
-                  if ( $alignment_bait_strand ne $alignment_target_strand );
 
                 # * Based on bait genomic position (deletions are found in the
                 # genome, insertion and microhomology in the read):
@@ -922,46 +951,37 @@ class MyApp::Command::Classify {
                 
                 if ($bait_real_end == $alignment_bait_end){
                 
-                    $target_class->is_blunt(1);
+                    $target_class->bait_is_blunt(1);
 
                 }
                 else {
-                    $target_class->has_deletion(1);
-                    $target_class->deletion_size($deletion_size);
+                    $target_class->bait_deletion_size($deletion_size);
 
                 }
-                
+               
                 if ($target_difference > 0 ){
-                    $target_class->has_insertion(1);
                     $target_class->insertion_size($target_difference);
 
                 }
                 elsif ($target_difference < 0 ){
-                    $target_class->has_microhomology(1);
                     $target_class->microhomology_size(abs($target_difference));
                 }
+                
                  
-
-
-                $g->add_vertex("$splices[$i]");
-
-                $g->set_vertex_attributes(
-                    $splices[$i],
-                    {
-                        fill        => 'blue'
-                    }
-                ) if $splices[$i] =~  /chr12_/;
-
-                $g->add_edge("$splices[0]","$splices[$i]");
 
                 push(@{$classification{$break}},$target_class);
             }
         }
+        
+        $self->log_info("Creating Alignment output file..."); 
+        $self->show_clusters_alignment($alignment_cluster, \%classification);
+
 
         my %size;
 
+        #$self->log_trace(Dumper(%classification));
 
-        my @types = ( 'deletion', 'insertion', 'microhomology' );
+        my @types = ( 'bait_deletion', 'target_deletion', 'insertion', 'microhomology' );
 
         foreach my $break ( keys %classification ) {
 
@@ -975,7 +995,11 @@ class MyApp::Command::Classify {
                 my $has_type  = "has_$type";
                 my $type_size = $type . "_size";
 
+
                 if ( $target->$has_type ) {
+    
+                    next if $target->$type_size > 10000;
+
                     $size{'all'}{$type}{ $target->$type_size }++;
                 }
                 else {
@@ -1017,6 +1041,7 @@ class MyApp::Command::Classify {
 
                 my @aux = keys %{$size{$key}{$type}};
                 my $max = max @aux;
+                next unless $max;
                 my $output_file =  $self->output_path."/".$key."_".$type;
                 open( my $out, '>', $output_file.".txt" );
                 
@@ -1025,12 +1050,15 @@ class MyApp::Command::Classify {
                 my $total_reads_key = 0;
                 $total_reads_key += $_ for values %{$size{$key}->{$type}};
 
-                for (my $i = 0; $i <= $max; $i++) {
-
+                for (my $i = 1; $i <= $max; $i++) {
+                    
                     # print position | count | freq
                     if ($size{$key}->{$type}->{$i}){
-                        say $out
-                        $i."\t".$size{$key}->{$type}->{$i}."\t".(($size{$key}->{$type}->{$i}/$total_reads_key) * 100 );
+                        say $out $i . "\t"
+                          . $size{$key}->{$type}->{$i} . "\t"
+                          . (
+                            ( $size{$key}->{$type}->{$i} / $total_reads ) *
+                              100 );
                     }
                     else{
                         say $out "$i\t0\t0";
@@ -1054,7 +1082,7 @@ class MyApp::Command::Classify {
                     $xlabel = "Microhomology size in pb";
                 }
                 $R->set('xlabel', $xlabel);
-                $R->set('ylabel', 'Frequency');
+                $R->set('ylabel', 'Frequency (event/total events)');
  
                 $R->run(q`x = read.delim(file)`);
                 my $output_graphic = "$output_file.pdf";
@@ -1069,25 +1097,6 @@ class MyApp::Command::Classify {
             }
             
         }
-
-
-        my $ge = Graph::Convert->as_graph_easy($g);
-
-      
-        # Graphviz:
-        my $graphviz = $ge->as_graphviz();
-        open (my $out,'>','ge_graph.dot') or die ("Cannot open pipe to dot: $!");
-        print $out $graphviz;
-        close ($out);
-
-        my @nodes = $g->vertices;
- 
-        #foreach my $node (@nodes){
-            #say
-            #$node.":\tin(".$g->in_degree($node).")\tout(".$g->out_degree($node).")";
-            #my $color = $g->get_vertex_attribute($node,'fill');
-            #say $color if $color;
-        # }
 
     }
 
@@ -1113,8 +1122,6 @@ class MyApp::Command::Classify {
 
     method get_reliable_alignments() {
 
-        #my $fake = Fake::Bio::DB::Bam->new();
-
         my $sam = Bio::DB::Sam->new(
             -bam          => $self->input_file,
             -fasta        => $self->fasta_file,
@@ -1132,135 +1139,452 @@ class MyApp::Command::Classify {
             -end    => $end,
             -type   => 'match',
         );
-
         
-        my @names;
         my %bait;
 
+        # Count number of reads with the same name that overlap the region
+        my %seen;
 
-        for my $a (@alignments) {
+        for my $aln (@alignments) {
 
-            my $name =  $a->query->display_name;
-            push @names,$name;
-            #my $fake_align = $fake->fake_align_obj($a);
+            my $name =  $aln->query->display_name;
+            
+            $seen{$name}++;
 
-            #$bait{$name} = $fake_align;
-            push @{$bait{$name}}, $a;
+            # Keep all segments that align in a bait position
+            # More than one fragment from the same read can align in this
+            # position. Example: A read split in 3 fragments and 2 of them 
+            # are in the bait position
+            push @{$bait{$name}}, $aln;
 
         }
         
-        # Count number of reads with the same name that overlap the region
-        my %seen;
-        $seen{$_}++ foreach (@names);
-
-
-        my @duplicated_baits_reads = grep { $seen{$_} > 1} keys %seen;
         my @uniq_bait_reads =  grep { $seen{$_} == 1} keys %seen;
-
+        my @duplicated_bait_reads =  grep { $seen{$_} > 1} keys %seen;
         
-
-        #say scalar @duplicated_baits_reads;
-        say $_ for @duplicated_baits_reads;
-        #say scalar @uniq_bait_reads;
-        #say scalar keys %seen;
+        # Index BAM by name using a hash
+        # PS: It loads all sequences into system memory. Should be used only
+        # with 454 sequences or small datasets
         
-        # Index BAM
-        say "Index BAM by name";
         my %reads;
 
         my @all_alignments = $sam->features;
 
-        foreach my $a (@all_alignments){
-            push(@{$reads{$a->query->display_name}}, $a)
+        my %total_splits_mapped;
+        foreach my $aln (@all_alignments){
+            push(@{$reads{$aln->query->display_name}}, $aln);
+            # total mapped
+            $total_splits_mapped{$aln->query->display_name}++ if $aln->qual > 0;
         }
-
-
-        say "Creating reads to cluster";
+       
+        my $total_reads_mapped = scalar (keys %total_splits_mapped);
         
-
         # $alignments_to_cluster{'sequence_id'} = {
         #       bait => align_obj,
-        #       targets => [
-        #           align_obj,
-        #           align_obj
-        #       ]
+        #       targets => query_start =>  [
+        #                                   align_obj,
+        #                                   align_obj
+        #                                  ]
         #   }
         # 
         my %alignments_to_cluster;
-        say "Total of reads to search:". scalar @uniq_bait_reads;
-        my $z =0;
+        
+        # uncomment this line if you want to allow bait align more than one
+        # time in the region
+        #foreach my $seq_id ( keys %seen ) {
 
-        #foreach my $seq_id (@uniq_bait_reads) {
-        foreach my $seq_id ( keys %seen ) {
-                $z++;
-                say "Searching for read: $seq_id ($z)";
-                #my @features = $sam->get_features_by_name($seq_id);
-                my @features = @{$reads{$seq_id}};
-                
+        # Just allow one alignment in the bait region (reads cannot split in
+        # that region)
+        #
 
-                # define the smallest alignment start as bait
-                my @aux = sort {$a->start <=> $b->start} @{$bait{$seq_id}};
-                my $local_bait = shift @aux;
-                $alignments_to_cluster{$seq_id}{bait} = $local_bait;
+        my $uniq_bait_without_target       = 0;
+        my $uniq_bait_with_target          = 0;
+        my $uniq_bait_with_target_accepted = 0;
+        my $uniq_bait_before_break         = 0;
+        my $bait_blunt_cut                 = 0;
+        my $bait_pseudoblunt_cut           = 0;
+        my $bait_no_cut                    = 0;
+        my $bait_cut_with_deletions        = 0;
+        my $bait_pseudocut_with_deletions  = 0;
 
-                foreach my $f (@features) {
+        foreach my $seq_id (@uniq_bait_reads) {
 
-                    my $read = $f->query;
+            # Keep invalid reads;
+            my $invalid_reads = 0;
 
-                    next if (
-                        $read->start == $local_bait->query->start
-                        &&
-                        $read->end == $local_bait->query->end
-                        &&
-                        $read->strand eq $local_bait->query->strand,
-                    );
-                    
-                    # indexing by query position
-                    my $query_start;
+            # Filter bait size
+            $invalid_reads++
+              if ( $bait{$seq_id}->[0]->query->length < $self->fragment_size
+                || $bait{$seq_id}->[0]->qual < $self->min_mapq );
 
-                    if ($f->strand == 1){
-                        $query_start = $f->query->start;
-                    }
-                    else{
-                        $query_start = length($f->query->seq->seq) -
-                        $f->query->start;
-                    }
+            #say "Searching for read: $seq_id ($z)";
 
-                    #my $fake_align = $fake->fake_align_obj($f);
-                    
-                    #push ( @{$alignments_to_cluster{$seq_id}{targets}{$query_start}},
-                    #    $fake_align);
-                    
-                    push ( @{$alignments_to_cluster{$seq_id}{targets}{$query_start}},
-                        $f);
+            my @features = @{ $reads{$seq_id} };
 
+            # allow reads that split in only 3 pieces
+            $invalid_reads++ if ( scalar @features == 0 );
+
+            # Check if bait split goes up to the break point and if it has
+            # deletion in the enzime restriction site
+            if ( scalar @features == 1 ) {
+
+                $uniq_bait_without_target++;
+
+                # access object in other variable;
+                my $this_bait = $features[0];
+
+
+                # Strand doesnt matter for the reference (only)
+                if ( $this_bait->end <= ($end - 1) + $self->enzime_restriction_size) {
+                    $uniq_bait_before_break++;
+                    $invalid_reads++;
+                    # $self->log_trace($this_bait->query->length); 
                 }
+                # Search for reas with deletion in the breakpoint
+                else {
+                    # Get cigar
+                    my  $cigar_ref = $this_bait->cigar_array;
+                    my @deletions;
+                    my $ref_start = $this_bait->start;
+
+                    # get start and end of each deletion
+                    foreach my $entry (@{$cigar_ref}) {
+
+                        next if $entry->[0] =~ /[SNI]/;
+
+                        if ($entry->[0] ne 'D'){
+
+                            $ref_start += $entry->[1];
+
+                        }
+                        else {
+
+                            push @deletions, {start => $ref_start, end =>
+                                ($ref_start + $entry->[1])};
+                            $ref_start += $entry->[1];
+                        }
+                    }
+ 
+                    # Check if deletion is within Isce-I site
+                    my $enzime_cut = 0;
+
+                    foreach my $del (@deletions){
+
+                        # preparing key for cis translocations
+                        #
+                        my $this_strand = '+';
+                        $this_strand = '-' if $this_bait->strand == -1;
+
+                        my $del_size = $del->{end} - $del->{start} -  $self->enzime_restriction_size;
+                        my $del_before_break = ($end) - $del->{start};
+                        my $del_after_break =  $del->{end} - ( $end  + $self->enzime_restriction_size );
+
+                        my $key =
+                            $chr . '_'
+                          . $del->{start} . '_'
+                          . $this_strand . '|'
+                          . $chr . '_'
+                          . $del->{end} . '_'
+                          . $this_strand. '_'
+                          . $del_before_break.'_'
+                          . $del_after_break;
+
+                        if (   $del->{start} == ( $end )
+                            && $del->{end} ==
+                            ( $end  + $self->enzime_restriction_size ) )
+                        {
+                            $enzime_cut = 1;
+                           $alignments_to_cluster{$seq_id}{key} = $key;
+                            #$self->log_trace($key);
+
+                        }
+                        elsif (   $del->{start} <= ( $end )
+                            && $del->{end} >=
+                            ( $end  + $self->enzime_restriction_size ) )
+                        {
+                            $enzime_cut = 2;
+                            $alignments_to_cluster{$seq_id}{key} = $key;
+                            #$self->log_trace($key);
+
+                        }
+                        elsif (   $del->{start} > ( $end )
+                            && $del->{end} <=
+                            ( $end  + $self->enzime_restriction_size ) 
+                            ||
+                             $del->{start} >= ( $end )
+                            && $del->{end} <
+                            ( $end  + $self->enzime_restriction_size ) 
+
+                        )
+                          {
+                            $enzime_cut = 3; #pseudo blunt
+                            # Pseudoblunt should be use the same key of normal
+                            # blunt
+                            
+                            my $this_key = $chr.'_'.$end
+                                .'_'.$this_strand.'|'.$chr.'_'.( $end +
+                                $self->enzime_restriction_size ).'_'.$this_strand.'_0_0';
+
+                            $alignments_to_cluster{$seq_id}{key} = $this_key;
+                            $self->log_trace($this_key);
+
+                        }
+                        # Check if we have a pseudo cut
+                        elsif ( $del->{start} > ( $end  )
+                                &&
+                                $del->{start} <  ( $end  +  $self->enzime_restriction_size )
+                            )
+                            {
+                            
+                            $enzime_cut = 4; #pseudo cut with deletion
+                            
+                            # Pseudocut should be use the same key of normal
+                            # cut for one of the sides
+                            my $this_start = ($end );
+ 
+                            $del_size = $del->{end} - $this_start -  $self->enzime_restriction_size;
+                            $del_before_break = ($end ) - $this_start;
+                            $del_after_break = $del->{end} -  ( $end + $self->enzime_restriction_size );
+
+                            $key =
+                                $chr . '_'
+                              . $this_start . '_'
+                              . $this_strand . '|'
+                              . $chr . '_'
+                              .     $del->{end} . '_'
+                              . $this_strand . '_'
+                              . $del_before_break . '_'
+                              . $del_after_break;
+
+                            $alignments_to_cluster{$seq_id}{key} = $key;
+                            #$self->log_trace($this_key);
+
+                        }
+                        elsif ( $del->{end} > ( $end  )
+                                &&
+                                $del->{end} <  ( $end  +  $self->enzime_restriction_size )
+                            )
+                            {
+                            $enzime_cut = 4; #pseudo cut with deletion
+
+                            # Pseudocut should be use the same key of normal
+                            # cut for one of the sides
+                            my $this_end = ( $end + $self->enzime_restriction_size );
+ 
+                            my $del_size = $this_end - $del->{start} -  $self->enzime_restriction_size;
+                            my $del_before_break = ($end ) - $del->{start};
+                            my $del_after_break = $this_end - ( $end  + $self->enzime_restriction_size );
+
+                            my $key =
+                                $chr . '_'
+                              . $del->{start} . '_'
+                              . $this_strand . '|'
+                              . $chr . '_'
+                              . $this_end . '_'
+                              . $this_strand . '_'
+                              . $del_before_break . '_'
+                              . $del_after_break;
+
+                            $alignments_to_cluster{$seq_id}{key} = $key;
+                            #$self->log_trace($this_key);
+
+                        }
+
+                    }
+                                        
+                    if ($enzime_cut == 1 ){
+                        $bait_blunt_cut++;
+                    }
+                    elsif ($enzime_cut == 2 ){
+                        $bait_cut_with_deletions++;
+                    }
+                    elsif ($enzime_cut == 3 ){
+                        
+                        $bait_pseudoblunt_cut++;
+                    }
+                    elsif ($enzime_cut == 4 ){
+                        
+                        $bait_pseudocut_with_deletions++;
+                   }
+                   else{
+                        $bait_no_cut++;
+                        $invalid_reads++;                        
+                    }
+                    
+                }
+
+            }
+
+
+=cut
+                # define the smallest alignment start as bait
+                #my @aux = sort {$a->start <=> $b->start} @{$bait{$seq_id}};
+                #my $local_bait = shift @aux;
+                #$alignments_to_cluster{$seq_id}{bait} = $local_bait;
+=cut
+
+            my $local_bait = $bait{$seq_id}->[0];
+            $alignments_to_cluster{$seq_id}{bait} = $bait{$seq_id}->[0];
+
+            
+            foreach my $f (@features) {
+                my $read = $f->query;
+
+                # verify if is bait sequence
+                if (
+                       $read->start == $local_bait->query->start
+                    && $read->end == $local_bait->query->end
+                    && $read->strand eq $local_bait->query->strand,
+                  )
+                {
+                    # verify if bait pass througth breakpoint
+                    if ( $f->end >
+                        ( $end - 1 ) + $self->enzime_restriction_size  && scalar
+                    @features > 1)
+                    {
+                        $invalid_reads++;
+                        $bait_no_cut++;
+                    }
+                    next;
+                }
+
+                # filter target length
+                $invalid_reads++
+                  if ( $read->length < $self->fragment_size
+                    || $f->qual < $self->min_mapq );
+
+                # indexing by query position
+                my $query_start;
+
+                if ( $f->strand == 1 ) {
+                    $query_start = $f->query->start;
+                }
+                else {
+                    $query_start =
+                      length( $f->query->seq->seq ) - $f->query->start;
+                }
+
+                push
+                  @{ $alignments_to_cluster{$seq_id}{targets}{$query_start} },
+                  $f;
+    
+
+            }
+
+           # Delete invalid entries from hash
+            delete $alignments_to_cluster{$seq_id} if $invalid_reads > 0;
+                
+            $uniq_bait_with_target_accepted++  if $invalid_reads == 0 &&
+            scalar @features > 1;
+            $uniq_bait_with_target++ if scalar @features > 1;
+ 
         }
 
+        # Generate DEBUG summary
+        my @summary;
+
+        my $total_reads = scalar keys %reads;
+        push @summary, "\t- Total of reads: " . $total_reads;
+        push @summary, "\t- Total of mapped reads: " . $total_reads_mapped;
+        my $total_reads_split = scalar @all_alignments;
+        push @summary, "\t- Total of read-splits: " . $total_reads_split;
+        my $uniq_baits = scalar @uniq_bait_reads;
+        push @summary,
+            "\t- Total of reads with unique bait: "
+          . $uniq_baits . " ("
+          . ( $uniq_baits / $total_reads * 100 ) . "%)";
+        push @summary,
+            "\t- Total of reads with duplicated baits: "
+          . scalar @duplicated_bait_reads . " ("
+          . ( scalar @duplicated_bait_reads / $total_reads * 100 ) . "%)";
+
+        push @summary,
+            "\t- Total of reads with unique bait and with targets: "
+          . $uniq_bait_with_target . " ("
+          . ( $uniq_bait_with_target / $total_reads * 100 ) . "%)";
+
+        push @summary,
+            "\t\t - Total of reads with unique bait and with targets accepted (based on quality): "
+          . $uniq_bait_with_target_accepted . " ("
+          . ( $uniq_bait_with_target_accepted / $total_reads * 100 ) . "%)";
+
+        push @summary,
+            "\t- Total of reads with unique bait and no targets: "
+          . $uniq_bait_without_target . " ("
+          . ( $uniq_bait_without_target / $total_reads * 100 ) . "%)";
+
+        my $total_bait_after_break_no_target =
+          $bait_cut_with_deletions + $bait_blunt_cut + $bait_no_cut;
+
+        push @summary,
+            "\t\t - Bait doesn't cross breakpoint': "
+          . $uniq_bait_before_break . " ("
+          . ( $uniq_bait_before_break / $uniq_bait_without_target * 100 )
+          . "%)";
+
+        push @summary,
+            "\t\t - Bait with no cut (intact restriction site): "
+          . $bait_no_cut . " ("
+          . ( $bait_no_cut / $uniq_bait_without_target * 100 ) . "%)";
+
+        push @summary,
+            "\t\t - Bait with blunt cut (accepted): "
+          . $bait_blunt_cut . " ("
+          . ( $bait_blunt_cut / $uniq_bait_without_target * 100 ) . "%)";
+
+        push @summary,
+            "\t\t - Bait with pseudo-blunt cut (accepted): "
+          . $bait_pseudoblunt_cut . " ("
+          . ( $bait_pseudoblunt_cut / $uniq_bait_without_target * 100 ) . "%)";
+
+        push @summary,
+            "\t\t - Bait cut with deletions (accepted): "
+          . $bait_cut_with_deletions . " ("
+          . ( $bait_cut_with_deletions / $uniq_bait_without_target * 100 )
+          . "%)";
+
+        push @summary,
+            "\t\t - Bait psedocut with deletions (accepted): "
+          . $bait_pseudocut_with_deletions . " ("
+          . ( $bait_pseudocut_with_deletions / $uniq_bait_without_target * 100 )
+          . "%)";
+
+
+        push @summary,
+          "\t- Mininum read-size (bait and target): " . $self->fragment_size;
+        push @summary, "\t- Mininum MAPQ (bait and target): " . $self->min_mapq;
+
+        $reads_to_clustering = scalar keys %alignments_to_cluster;
+
+        push @summary,
+            "\t- Total of reads sent to clustering: "
+          . $reads_to_clustering . " ("
+          . ( $reads_to_clustering / $total_reads * 100 ) . "%)";
+
+        $self->log_debug( join "\n", @summary );
+
         return \%alignments_to_cluster;
- 
     }
 
     # method used to run the command
     method execute ($opt,$args) {
-        
+
         # Given the BAM file, get alignments to cluster.
-        # Reliable reads are those which overlap this (hard coded) position:
+        # Reliable reads are those which overlap this (hard coded) position by
+        # default:
         # 
         # chr15:61818182-61818333
-        #
-        # PS: A more general tool should allow the user specify other
-        # positions 
+        $self->log_info("Getting reliable alignments...");
         my $reliable_alignments = $self->get_reliable_alignments();
 
         # print Dumper($reads_to_cluster);
-        say "Clustering....";
-        my $alignments_cluster = $self->cluster_alignments($reliable_alignments);
+        $self->log_info("Clustering...");
+        my $alignments_cluster = $self->clustering_alignments($reliable_alignments);
 
-        say "Creating Alignment output file..."; 
-        $self->show_clusters_alignment($alignments_cluster);
+        #$self->log_info("Creating Alignment output file..."); 
+        #$self->show_clusters_alignment($alignments_cluster);
 
-        say "Classifying aligments clusters";
+        $self->log_info("Classifying aligments clusters");
         $self->classify($alignments_cluster);
         
     }
@@ -1270,4 +1594,3 @@ class MyApp::Command::Classify {
 class main {
     MyApp->run;
 }
-
