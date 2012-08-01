@@ -998,7 +998,7 @@ class MyApp::Command::Classify {
 
                 if ( $target->$has_type ) {
     
-                    next if $target->$type_size > 10000;
+                    next if $target->$type_size > 1000000;
 
                     $size{'all'}{$type}{ $target->$type_size }++;
                 }
@@ -1566,6 +1566,29 @@ class MyApp::Command::Classify {
         return \%alignments_to_cluster;
     }
 
+    method generate_bedfile(HashRef $alignment_cluster){
+
+        open( my $out, '>', $self->output_path . '/targets.bed' );
+
+        my $i=0;
+        foreach my $key ( keys %{$alignment_cluster} ) {
+            $i++;
+            my @splits        = split /\|/, $key;
+            my $bait          = $splits[0];
+            my $distal_target = $splits[$#splits];
+            my ( $chr, $start, $strand );
+
+            if ( $distal_target =~ /^(\S+)_(\d+)_([+-])/ ) {
+                ( $chr, $start, $strand ) = ( $1, $2, $3 );
+                say $out join
+                "\t",($chr,$start,($start+1),"break$i",scalar(@{$alignment_cluster->{$key}}),$strand);
+            }
+
+        }
+        close($out);
+
+    }
+    
     # method used to run the command
     method execute ($opt,$args) {
 
@@ -1580,6 +1603,10 @@ class MyApp::Command::Classify {
         # print Dumper($reads_to_cluster);
         $self->log_info("Clustering...");
         my $alignments_cluster = $self->clustering_alignments($reliable_alignments);
+        
+        # Generating target bed file
+        $self->log_info("Generating Target BED file...");
+        $self->generate_bedfile($alignments_cluster);
 
         #$self->log_info("Creating Alignment output file..."); 
         #$self->show_clusters_alignment($alignments_cluster);

@@ -1504,6 +1504,94 @@ package MyApp::Feature::Bed;
 }
 1;
 
+# Generic Class to represent a BED file
+package MyApp::BED;
+{
+    use Moose;
+    use Modern::Perl;
+    
+    # BED Fields
+    has 'chrom'       => ( is => 'ro', isa => 'Str', required => 1 );
+    has 'chromStart'  => ( is => 'ro', isa => 'Int', required => 1 );
+    has 'chromEnd'    => ( is => 'ro', isa => 'Int', required => 1 );
+    has 'name'        => ( is => 'ro', isa => 'Str', required => 1);
+    has 'score'       => ( is => 'ro', isa => 'Int', required => 1 );
+    has 'strand'      => ( is => 'ro', isa => 'Str', required => 1 );
+    has 'thickStart'  => ( is => 'ro', isa => 'Int' );
+    has 'thickEnd'    => ( is => 'ro', isa => 'Int' );
+    has 'itemRgb'     => ( is => 'ro', isa => 'Str' );
+    has 'blockCount'  => ( is => 'ro', isa => 'Str' );
+    has 'blockSizes'  => ( is => 'ro', isa => 'Str' );
+    has 'blockStarts' => ( is => 'ro', isa => 'Str' );
+
+}
+
+# Generic Class to parse A BED file
+
+package MyApp::BED::Parser;
+{
+    use Moose;
+    use Modern::Perl;
+    import MyApp::BED;
+    
+    # Attributes
+    has 'bed_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases   => 'b',
+        required      => 1,
+        documentation => 'BED File with 6 columns (only)',
+    );
+    
+    
+=head2 parse_bed_file
+
+ Title   : parse_bed_file
+ Usage   : parse_bed_file()
+ Function: 
+ Returns : Returns an ArrayRef of MyApp::BED objects 
+ Args    : 
+
+=cut 
+
+sub parse_bed_file {
+    my($self) = @_;
+
+    my @rows;
+    open( my $in, '<', $self->bed_file );
+    
+    while ( my $row = <$in> ){
+        chomp $row;
+        
+        my @aux = split /\s+/, $row;
+        
+        unless ( scalar @aux == 6 ) {
+            use Data::Dumper;
+            say "Your row: ".$row;
+            print Dumper(@aux);
+            die $self->bed_file . " has ".scalar @aux." columns! Only 6 columns
+            are accepted!";
+        }
+
+        my $bed = MyApp::BED->new(
+            'chrom'      => $aux[0],
+            'chromStart' => $aux[1],
+            'chromEnd'   => $aux[2],
+            'name'       => $aux[3],
+            'score'      => $aux[4],
+            'strand'     => $aux[5],
+        );
+
+        push @rows,$bed;
+    }
+    close( $in );
+    
+    return \@rows;
+}
+
+}
+1;
 
 
 #-------------------------------------------------------------------------------------------------------
@@ -2952,6 +3040,130 @@ sub get_tss_given_a_list {
 }
 1;
 
+package Get::BED::TSS;
+{
+    use Moose;
+    extends 'MyApp::BED::Parser';
+
+    
+=head2 get_tss_position
+
+ Title   : get_tss_position
+ Usage   : get_tss_position()
+ Function: 
+ Returns : 
+ Args    : 
+
+=cut 
+
+sub get_tss_positions {
+    my($self, $range) = @_;
+
+    $range = 2000 unless $range;
+
+    my $bed = $self->parse_bed_file();
+    
+    my @out;
+    foreach my $feat ( @{$bed} ) {
+        my $tss;
+        if ( $feat->strand =~ /\+/ ) {
+            $tss = $feat->chromStart;
+        }
+        else {
+            $tss = $feat->chromEnd;
+        }
+
+        my $less_range;
+
+        if ( $tss - $range < 0 ) {
+            $less_range = 0;
+        }
+        else {
+            $less_range = $tss - $range;
+        }
+
+        my $line =
+            $feat->chrom . "\t"
+          . ($less_range) . "\t"
+          . ( $tss + $range ) . "\t"
+          . $feat->name . "\t"
+          . $feat->score . "\t"
+          . $feat->strand;
+        push( @out, $line );
+    }
+
+    my $txt = join( "\n", @out );
+
+    return $txt;
+
+}
+
+
+=head2 get_tss_given_a_list
+
+ Title   : get_tss_given_a_list
+ Usage   : get_tss_given_a_list()
+ Function: 
+ Returns : 
+ Args    : 
+
+=cut 
+
+sub get_tss_given_a_list {
+    my($self, $range, $list, $type) = @_;
+    
+    $type = 'symbol' unless $type;
+
+    $range = 2000 unless $range;
+
+    my $bed = $self->parse_bed_file();
+    
+    my @out;
+    
+    foreach my $feat ( @{$bed} ) {
+        my $id = $feat->$type;
+        if ( 
+            $id && /^$id$/i ~~ $list 
+        
+        ){
+        my $tss;
+        if ( $feat->strand =~ /\+/ ) {
+            $tss = $feat->chromStart;
+        }
+        else {
+            $tss = $feat->chromEnd;
+        }
+
+        my $less_range;
+
+        if ( $tss - $range < 0 ) {
+            $less_range = 0;
+        }
+        else {
+            $less_range = $tss - $range;
+        }
+
+        my $line =
+            $feat->chrom . "\t"
+          . ($less_range) . "\t"
+          . ( $tss + $range ) . "\t"
+          . $feat->name . "\t"
+          . $feat->symbol . "\t";
+
+        push( @out, $line );
+        }
+    }
+
+    my $txt = join( "\n", @out );
+
+    return $txt;
+
+}
+
+
+}
+1;
+
 package Venn::BED::Two;
 {
     use Moose;
@@ -3595,7 +3807,7 @@ package MyApp::Command::Get_DNA_from_Bed;
 
 }
 
-package MyApp::Command::Get_TSS;
+package MyApp::Command::Get_TSS_from_UCSC;
 {
     use Moose;
 
@@ -3641,6 +3853,58 @@ package MyApp::Command::Get_TSS;
 
 }
 1;
+
+package MyApp::Command::Get_TSS_from_BED;
+{
+    use Moose;
+
+    # Working with files and directories as attributes
+    extends 'MooseX::App::Cmd::Command', 'Get::BED::TSS';
+
+    has 'range' => (
+        isa           => 'Int',
+        is            => 'rw',
+        documentation => 'Range before and after TSS'
+    );
+    has 'list' => (
+        isa           => 'Str',
+        is            => 'rw',
+        documentation => 'A list of gene symbols',
+        required      => 0
+    );
+
+    # Description of this command in first help
+    sub abstract { 'Get a TSS plus a range for all genes from a BED file.'; }
+
+    # method used to run the command
+    sub execute {
+        my ( $self, $opt, $args ) = @_;
+        if ( $self->list ) {
+            open (my $in,'<',$self->list) or die "can't open ". $self->list;
+            my @symbols;
+            while ( my $symbol = <$in> ) {
+                chomp $symbol;
+                push @symbols, $symbol;
+            }
+            close($in);
+
+            my $list =
+              $self->get_tss_given_a_list( $self->trackname, $self->range, \@symbols, $self->type);
+            
+            say $list;
+                
+        }
+        else {
+            my $list =
+              $self->get_tss_positions( $self->range, );
+
+            say $list;
+        }
+    }
+
+}
+1;
+
 
 package MyApp::Command::bed2html;
 {
@@ -4054,6 +4318,151 @@ package MyApp::Command::binBed;
              say join("\t",@row);
          }
 
+    }
+
+}
+1;
+
+package MyApp::Command::bedpe2circos;
+{
+    use Moose;
+
+    # Working with files and directories as attributes
+    extends 'MooseX::App::Cmd::Command';
+
+    has 'input_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases   => 'i',
+        required      => 1,
+        documentation => 'BEDPE file',
+    );
+
+    has 'link_name' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases   => 'l',
+        required      => 0,
+        default       => "R",
+        documentation => 'Append a name for the link. "R" is the default.',
+    );
+   
+
+    
+    
+    # MooseX::App:Cmd Execute method (call all your above methods bellow)
+    # =================================================================================================
+    # Description of this command in first help
+    sub abstract { 'Generate a circos link file given a bedpe file'; }
+
+    sub parse_bedpe {
+        my ($self) = @_;
+        open( my $in, '<', $self->input_file );
+        my $i =0;
+        my %links;
+        while ( my $row = <$in> ){
+            chomp $row;
+            next if $row =~ /^#/;
+            $i++;
+            my $key = $self->link_name.$i;
+            $row =~ s/chrX/mmx/g;
+            $row =~ s/chrY/mmy/g;
+            $row =~ s/chr/mm/g;
+            my @aux = split /\t/, $row;
+            my $first = join "\t",@aux[0..2];
+            push @{$links{$key}},$first;
+            my $second = join "\t",@aux[3..5];
+            push @{$links{$key}},$second;
+        }
+        close( $in );
+        return \%links;
+    }
+
+    # method used to run the command
+    sub execute {
+        my ( $self, $opt, $args ) = @_;
+        my $links = $self->parse_bedpe;
+        foreach my $link (keys %{$links}){
+            say $link."\t".$links->{$link}->[0];
+            say $link."\t".$links->{$link}->[1];
+        }
+    }
+
+}
+1;
+
+package MyApp::Command::bed_TCseq2circos;
+{
+    use Moose;
+
+    # Working with files and directories as attributes
+    extends 'MooseX::App::Cmd::Command';
+
+    has 'input_file' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases   => 'i',
+        required      => 1,
+        documentation => 'BED file',
+    );
+
+    has 'breakpoint' => (
+        is            => 'rw',
+        isa           => 'Str',
+        traits        => ['Getopt'],
+        cmd_aliases   => 'b',
+        required      => 1,
+        default => 'chr15:61818338-61818339',
+        documentation => 'Breakpoint position. Default (chr15:61818338-61818339)',
+    );
+
+
+    
+    
+    # MooseX::App:Cmd Execute method (call all your above methods bellow)
+    # =================================================================================================
+    # Description of this command in first help
+    sub abstract { 'Generate a circos link file given a TC-Seq bed file'; }
+
+    sub parse_bedpe {
+        my ($self) = @_;
+        open( my $in, '<', $self->input_file );
+        my $i =0;
+        my %links;
+        my @bait;
+        @bait =  ($1,$2,$3) if ($self->breakpoint =~
+            /^(\S+):(\d+)-(\d+)/);
+        
+
+        while ( my $row = <$in> ){
+            chomp $row;
+            next if $row =~ /^#/;
+            $i++;
+            $row =~ s/chrX/mmx/g;
+            $row =~ s/chrY/mmy/g;
+            $row =~ s/chr/mm/g;
+            my @aux = split /\t/, $row;
+            my $key = $aux[3];
+            my $first = join "\t",@aux[0..2];
+            push @{$links{$key}},$first;
+            my $second = join "\t",@bait;
+            push @{$links{$key}},$second;
+        }
+        close( $in );
+        return \%links;
+    }
+
+    # method used to run the command
+    sub execute {
+        my ( $self, $opt, $args ) = @_;
+        my $links = $self->parse_bedpe;
+        foreach my $link (keys %{$links}){
+            say $link."\t".$links->{$link}->[0];
+            say $link."\t".$links->{$link}->[1];
+        }
     }
 
 }
@@ -4932,7 +5341,8 @@ package MyApp::Command::bed2excel;
 package MyApp::Command::Get_RNASeq_stalling; 
 {
     use Moose;
-    use 5.10.0;
+    use Modern::Perl '2012';
+    extends qw/MooseX::App::Cmd::Command/;
     use Excel::Writer::XLSX;
     use Data::Dumper;
     with 'UCSC::Role';
@@ -4941,7 +5351,6 @@ package MyApp::Command::Get_RNASeq_stalling;
     use File::Temp qw/ :seekable /;
     use List::Util qw(first max maxstr min minstr reduce shuffle sum);
 
-    extends qw/MooseX::App::Cmd::Command/;
 
 
     has 'input_file' => (
@@ -5571,7 +5980,7 @@ package MyApp::Command::Merge_Genes;
 
     sub proc_aux {
         my ($self,@aux) = @_;
-        my ($chr,$start,$end,$symbol,$strand) = split /\s+/, $aux[0];
+        my ($chr,$start,$end,$symbol,$score,$strand) = split /\s+/, $aux[0];
         if ( $#aux > 0 ) {
             my $fh    = File::Temp->new();
             my $fname = $fh->filename;
@@ -5579,7 +5988,7 @@ package MyApp::Command::Merge_Genes;
             my $cmd = 'mergeBed -nms -i ' . $fname;
             my $out = qx/$cmd/;
             $out =~ s/\;.*//g;
-            $out =~ s/\n/\t$strand\n/g;
+            $out =~ s/\n/\t$score\t$strand\n/g;
             print $out;
         }
         else {
@@ -5603,7 +6012,7 @@ package MyApp::Command::Merge_Genes;
         my $last;
         my @aux;
         while ( my $row = <$in> ){
-            my ($chr,$start,$end,$symbol,$strand) = split /\s+/, $row;
+            my ($chr,$start,$end,$symbol,$score,$strand) = split /\s+/, $row;
             
 
             if ( $last && $last ne $symbol.$strand  ) {
